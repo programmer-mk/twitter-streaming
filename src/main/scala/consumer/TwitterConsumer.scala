@@ -1,3 +1,5 @@
+package consumer
+
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -5,7 +7,6 @@ import com.danielasfregola.twitter4s.TwitterRestClient
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
-
 
 object TwitterConsumer {
 
