@@ -1,6 +1,9 @@
+import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
-import scala.concurrent.duration.Duration
+
+import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
 
 
@@ -10,17 +13,18 @@ object TwitterConsumer {
     // get an ActorSystem in scope for the futures
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
-
-    val nums = Seq(1,2,3)
-
     val twitterClient = TwitterRestClient()
+    val nums = (1 to 10).toList
 
-    val tweets = Future.sequence(nums.map { _ =>
-      val searchTweets = twitterClient.searchTweet("football")
-      searchTweets
-    })
+    while(true) {
+      val tweets = Future.sequence(nums.map { _ =>
+        val searchTweets = twitterClient.searchTweet("football")
+        searchTweets
+      })
 
-    val completedResults = Await.result(tweets, Duration("5"))
-    println(completedResults)
+      val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
+      val completedResults = Await.result(tweets, maxWaitTime)
+      println(completedResults)
+    }
   }
 }
