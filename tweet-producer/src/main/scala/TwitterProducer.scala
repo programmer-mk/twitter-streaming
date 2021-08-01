@@ -3,18 +3,20 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
-import org.apache.kafka.clients.producer.KafkaProducer
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
 
-object TwitterConsumer {
+object TwitterProducer {
 
   def main(args : Array[String]) {
     // get an ActorSystem in scope for the futures
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
+    val TOPIC = "tweets"
+
     val twitterClient = TwitterRestClient()
     val nums = (1 to 10).toList
 
@@ -34,6 +36,10 @@ object TwitterConsumer {
 
       val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
       val completedResults = Await.result(tweets, maxWaitTime)
+      completedResults.flatMap(_.data.statuses) foreach { tweet =>
+        val data = new ProducerRecord[String, String](TOPIC, tweet.text)
+        producer.send(data)
+      }
       println(completedResults)
     }
   }

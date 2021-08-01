@@ -1,3 +1,5 @@
+import sbt.Keys.libraryDependencies
+
 name := "twitter-streaming"
 
 version := "0.1"
@@ -11,12 +13,13 @@ libraryDependencies += "org.apache.spark" %% "spark-streaming" % "2.4.6"
 libraryDependencies ++= Dependencies.clientDependencies
 
 
+
 def dockerSettings(debugPort: Option[Int] = None) = Seq(
 
   dockerfile in docker := {
     val artifactSource: File = assembly.value
     val artifactTargetPath = s"/project/${artifactSource.name}"
-    val scriptSourceDir = baseDirectory.value / "../scripts"
+    val scriptSourceDir = baseDirectory.value / "../deploy"
     val projectDir = "/project/"
 
     new Dockerfile {
@@ -41,5 +44,12 @@ lazy val producer = (project in file("tweet-producer"))
       "com.danielasfregola" %% "twitter4s" % "6.2",
       "org.apache.kafka" % "kafka_2.11" % "0.10.0.0" withSources() exclude("org.slf4j","slf4j-log4j12") exclude("javax.jms", "jms") exclude("com.sun.jdmk", "jmxtools") exclude("com.sun.jmx", "jmxri")
     ),
+    dockerSettings()
+  )
+
+lazy val consumer = (project in file("tweet-consumer"))
+  .enablePlugins(sbtdocker.DockerPlugin)
+  .settings(
+    libraryDependencies += "org.apache.kafka" % "kafka_2.11" % "0.10.0.0" withSources() exclude("org.slf4j","slf4j-log4j12") exclude("javax.jms", "jms") exclude("com.sun.jdmk", "jmxtools") exclude("com.sun.jmx", "jmxri"),
     dockerSettings()
   )
