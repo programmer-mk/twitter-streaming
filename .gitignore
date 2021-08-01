@@ -1,3 +1,5 @@
 .idea
 target/
 project/target
+requests.txt
+src/main/resources/application.conf
