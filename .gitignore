@@ -1,3 +1,5 @@
 .idea
 target/
 project/target
+requests.txt
+spark-streaming/src/main/resources/application.conf
