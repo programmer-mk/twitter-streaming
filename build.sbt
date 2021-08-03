@@ -57,6 +57,9 @@ lazy val sparkStreamingProcessor = (project in file("spark-streaming"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-sql" % "2.4.6" % "provided",
       "org.apache.spark" %% "spark-streaming" % "2.4.6" % "provided",
+     // "org.apache.spark" %% "org.apache.spark" % "spark-streaming-kafka" % "1.6.0",
+      "org.apache.spark" % "spark-streaming-kafka-0-10_2.11" % "2.2.0",
+
       "com.typesafe.akka" %% "akka-actor" % "2.5.30",
       "com.typesafe.akka" %% "akka-stream" % "2.5.30",
       "com.typesafe.akka" %% "akka-http-core" % "10.0.5",
