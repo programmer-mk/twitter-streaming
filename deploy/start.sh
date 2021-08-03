@@ -14,4 +14,4 @@ echo $VERSION
 $PROJECT_DIR/wait-for-it.sh zookeeper:2181 -t 30 -- echo "Zookeeper started"
 $PROJECT_DIR/wait-for-it.sh kafka:9092 -t 30 -- echo "Kafka started"
 
-java -jar $PROJECT_DIR"$MODULE_NAME"-assembly-"$VERSION".jar;
+java -jar $PROJECT_DIR/"$MODULE_NAME"-assembly-"$VERSION".jar;
