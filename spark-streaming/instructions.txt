@@ -1,0 +1,5 @@
+For building docker image for spark streaming app:  docker build --rm=true -t bde/spark-app .
+For running container: docker run --name my-spark-app -e ENABLE_INIT_DAEMON=false --network=spark-streaming_default --link spark-master:spark-master -t -d bde/spark-app
+
+For seeing logs of docker container: docker logs <container_id>
+Connect to detached container: docker exec -it c9157d243a28 bash
