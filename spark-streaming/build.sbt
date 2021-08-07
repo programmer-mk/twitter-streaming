@@ -5,20 +5,18 @@ version := "1.0"
 scalaVersion :=  "2.11.8"
 
 
-//assemblyMergeStrategy in assembly := {
-//  case x if x.endsWith("UnusedStubClass.class") => MergeStrategy.last
-//  case x if x.endsWith("git.properties") => MergeStrategy.last
-//  case x if x.endsWith("Inject.class") => MergeStrategy.last
-//  case x if x.endsWith("Named.class") => MergeStrategy.last
-//  case x if x.endsWith("Provider.class") => MergeStrategy.last
-//  case x if x.endsWith("Qualifier.class") => MergeStrategy.last
-//  case x if x.endsWith("package-info.class") => MergeStrategy.last
-//  case x if x.endsWith("FastHashMap$Values.class") => MergeStrategy.last
-//  case x if x.endsWith("FastHashMap.class") => MergeStrategy.last
-//  case x if x.endsWith("FastHashMap$CollectionView.class") => MergeStrategy.last
-//  case x if x.endsWith("FastHashMap$CollectionView$CollectionViewIterator.class") => MergeStrategy.last
-//  case PathList(ps @ _*) if ps.last endsWith "mime.types" => MergeStrategy.last
-//  case x =>
-//    val oldStrategy = (assemblyMergeStrategy in assembly).value
-//    oldStrategy(x)
-//}
+//libraryDependencies ++= Seq(
+//  "org.apache.spark" %% "spark-sql" % "2.4.5" % "provided",
+//  "org.apache.spark" %% "spark-streaming" % "2.4.5" % "provided",
+//  // "org.apache.spark" %% "org.apache.spark" % "spark-streaming-kafka" % "1.6.0",
+//  "org.apache.spark" % "spark-streaming-kafka-0-10_2.11" % "2.2.0" % "provided",
+//  "org.apache.hadoop" % "hadoop-aws" % "2.8.2" % "provided",
+//  "com.amazonaws" % "aws-java-sdk-pom" % "1.10.34" % "provided"
+//)
+
+libraryDependencies ++= Seq(
+  "org.apache.hadoop" % "hadoop-common" % "3.0.0",
+  "org.apache.hadoop" % "hadoop-client" % "3.0.0",
+  "org.apache.hadoop" % "hadoop-aws" % "3.0.0",
+  "org.apache.spark" %% "spark-core" % "2.4.5" % "provided",
+)
