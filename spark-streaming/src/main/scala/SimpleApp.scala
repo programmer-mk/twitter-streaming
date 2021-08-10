@@ -1,4 +1,5 @@
 /* SimpleApp.scala */
+import org.apache.log4j.Logger
 import org.apache.spark.{SparkConf, SparkContext}
 
 object SimpleApp {
@@ -13,17 +14,17 @@ object SimpleApp {
     val conf = new SparkConf().setAppName("Simple Application").setMaster("spark://spark-master:7077")
     val sc = new SparkContext(conf)
 
+    val log = Logger.getLogger(getClass.getName)
     // specify AWS credentials
     val awsCredentials = getAwsCredentials
-    sc.hadoopConfiguration.set("fs.s3n.access.key", awsCredentials._1)
-    sc.hadoopConfiguration.set("fs.s3n.secret.key", awsCredentials._2)
-    sc.hadoopConfiguration.set("fs.s3n.endpoint", "s3.amazonaws.com")
-    sc.setLogLevel("ERROR")
+    sc.hadoopConfiguration.set("fs.s3a.access.key", getAwsCredentials._1)
+    sc.hadoopConfiguration.set("fs.s3a.secret.key", getAwsCredentials._2)
+    sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
     val logData = sc.textFile("s3a://test-spark-miki-bucket/spark_dummy_data.txt").cache()
-    val numAs = logData.filter(line => line.contains("a")).count()
-    val numBs = logData.filter(line => line.contains("b")).count()
-    println(s"Lines with a: $numAs, Lines with b: $numBs")
+    logData.filter(line => line.contains("a")).collect().foreach(log.info)
+    logData.filter(line => line.contains("b")).collect().foreach(log.info)
     sc.stop()
   }
 }
