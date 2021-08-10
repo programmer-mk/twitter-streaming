@@ -17,14 +17,17 @@ resolvers += Resolver.sonatypeRepo("releases")
       val scriptSourceDir = baseDirectory.value / "../deploy"
       val projectDir = "/project"
 
-      val p: Dockerfile =   if (sparkImage) {
+      if (sparkImage) {
         new Dockerfile {
-          from(" bde2020/spark-submit:2.4.5-hadoop2.7")
+          from("bde2020/spark-worker:3.1.1-hadoop3.2")
           add(artifactSource, artifactTargetPath)
           copy(scriptSourceDir, projectDir)
           env("AWS_ACCESS_KEY_ID", "xxxx")
           env("AWS_SECRET_ACCESS_KEY", "xxxx")
+          env("SPARK_APPLICATION_MAIN_CLASS", "SimpleApp")
+          env("ENABLE_INIT_DAEMON", "false")
           run("chmod", "+x", "/project/template.sh")
+          run("chmod", "+x", "/project/submit.sh")
           entryPoint(s"/project/template.sh")
           cmd(projectDir, s"${name.value}", s"${version.value}")
         }
@@ -39,7 +42,6 @@ resolvers += Resolver.sonatypeRepo("releases")
           cmd(projectDir, s"${name.value}", s"${version.value}")
         }
       }
-      p
     },
     imageNames in docker := Seq(
       ImageName(s"mkovacevic/${name.value}:latest")
@@ -68,9 +70,9 @@ resolvers += Resolver.sonatypeRepo("releases")
     .enablePlugins(sbtdocker.DockerPlugin)
     .settings(
       libraryDependencies ++= Seq(
-        "org.apache.hadoop" % "hadoop-common" % "3.0.0",
-        "org.apache.hadoop" % "hadoop-client" % "3.0.0",
-        "org.apache.hadoop" % "hadoop-aws" % "3.0.0",
+        "org.apache.hadoop" % "hadoop-common" % "3.2.0",
+        "org.apache.hadoop" % "hadoop-client" % "3.2.0",
+        "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
         "org.apache.spark" %% "spark-core" % "2.4.5" % "provided",
       ),
       dockerSettings(true)
