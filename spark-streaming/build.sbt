@@ -2,7 +2,7 @@ name := "spark-streaming-app"
 
 version := "1.0"
 
-scalaVersion :=  "2.11.8"
+scalaVersion :=  "2.12.3"
 
 
 //libraryDependencies ++= Seq(
@@ -27,6 +27,7 @@ scalaVersion :=  "2.11.8"
 
 assemblyMergeStrategy in assembly := {
   case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.discard
+  case x if x.endsWith("module-info.class") => MergeStrategy.discard
   case x =>
     val oldStrategy = (assemblyMergeStrategy in assembly).value
     oldStrategy(x)
