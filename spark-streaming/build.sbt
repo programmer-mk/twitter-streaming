@@ -14,9 +14,20 @@ scalaVersion :=  "2.11.8"
 //  "com.amazonaws" % "aws-java-sdk-pom" % "1.10.34" % "provided"
 //)
 
-libraryDependencies ++= Seq(
-  "org.apache.hadoop" % "hadoop-common" % "3.0.0",
-  "org.apache.hadoop" % "hadoop-client" % "3.0.0",
-  "org.apache.hadoop" % "hadoop-aws" % "3.0.0",
-  "org.apache.spark" %% "spark-core" % "2.4.5" % "provided",
-)
+//libraryDependencies ++= Seq(
+//  "org.apache.hadoop" % "hadoop-common" % "3.0.0",
+//  "org.apache.hadoop" % "hadoop-client" % "3.0.0",
+//  "org.apache.hadoop" % "hadoop-aws" % "3.0.0",
+//  "org.apache.spark" %% "spark-core" % "2.4.5" % "provided",
+//)
+
+//commonExcludeDependencies ++= Seq(
+//  SbtExclusionRule("org.apache.avro","avro-tools"),
+//)
+
+assemblyMergeStrategy in assembly := {
+  case x if x.endsWith("public-suffix-list.txt") => MergeStrategy.discard
+  case x =>
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SPARK_APPLICATION_JAR_LOCATION=`find /app/target -iname '*-assembly-*.jar' | head -n1`
+SPARK_APPLICATION_JAR_LOCATION=`find  -iname '*-assembly-*.jar' | head -n1`
 export SPARK_APPLICATION_JAR_LOCATION
 
 if [ -z "$SPARK_APPLICATION_JAR_LOCATION" ]; then
@@ -8,4 +8,4 @@ if [ -z "$SPARK_APPLICATION_JAR_LOCATION" ]; then
 	exit 1
 fi
 
-/submit.sh
+/project/submit.sh
