@@ -27,20 +27,32 @@ object TwitterProducer {
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
 
     val producer = new KafkaProducer[String, String](props)
-
-    while(true) {
-      val tweets = Future.sequence(nums.map { _ =>
-        val searchTweets = twitterClient.searchTweet("football")
-        searchTweets
-      })
-
-      val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
-      val completedResults = Await.result(tweets, maxWaitTime)
-      completedResults.flatMap(_.data.statuses) foreach { tweet =>
-        val data = new ProducerRecord[String, String](TOPIC, tweet.text)
+    val test = true
+    if(test) {
+      var i = 0
+      while(true) {
+        val value = s"record-${i}"
+        val data = new ProducerRecord[String, String](TOPIC, value)
+        i +=1
+        Thread.sleep(1000)
         producer.send(data)
+        println(value)
       }
-      println(completedResults)
+    } else {
+      while(true) {
+        val tweets = Future.sequence(nums.map { _ =>
+          val searchTweets = twitterClient.searchTweet("football")
+          searchTweets
+        })
+
+        val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
+        val completedResults = Await.result(tweets, maxWaitTime)
+        completedResults.flatMap(_.data.statuses) foreach { tweet =>
+          val data = new ProducerRecord[String, String](TOPIC, tweet.text)
+          producer.send(data)
+        }
+        println(completedResults)
+      }
     }
   }
 }

@@ -17,8 +17,8 @@ object SimpleApp {
     val log = Logger.getLogger(getClass.getName)
     // specify AWS credentials
     val awsCredentials = getAwsCredentials
-    sc.hadoopConfiguration.set("fs.s3a.access.key", getAwsCredentials._1)
-    sc.hadoopConfiguration.set("fs.s3a.secret.key", getAwsCredentials._2)
+    sc.hadoopConfiguration.set("fs.s3a.access.key", awsCredentials._1)
+    sc.hadoopConfiguration.set("fs.s3a.secret.key", awsCredentials._2)
     sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 

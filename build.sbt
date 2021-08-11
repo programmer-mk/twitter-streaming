@@ -24,10 +24,12 @@ resolvers += Resolver.sonatypeRepo("releases")
           copy(scriptSourceDir, projectDir)
           env("AWS_ACCESS_KEY_ID", "xxxx")
           env("AWS_SECRET_ACCESS_KEY", "xxxx")
-          env("SPARK_APPLICATION_MAIN_CLASS", "SimpleApp")
+          env("SPARK_APPLICATION_MAIN_CLASS", "TweetKafkaStreaming")
           env("ENABLE_INIT_DAEMON", "false")
           run("chmod", "+x", "/project/template.sh")
           run("chmod", "+x", "/project/submit.sh")
+          run("chmod", "+x", "/project/test-script.sh")
+          //entryPoint(s"/project/test-script.sh")
           entryPoint(s"/project/template.sh")
           cmd(projectDir, s"${name.value}", s"${version.value}")
         }
@@ -75,7 +77,9 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
         "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
-        "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2" % "provided",
+        "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
+        "org.apache.kafka" %% "kafka" % "2.8.0",
+        "log4j" % "log4j" % "1.2.14"
       ),
       dockerSettings(true)
     )
