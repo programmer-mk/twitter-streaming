@@ -1,0 +1,8 @@
+version: '2'
+services:
+  visualization-app:
+    image: dashboards_visualization-app
+    ports:
+      - "5000:5002"
+    volumes:
+      - .:/visualization
