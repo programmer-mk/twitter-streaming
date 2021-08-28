@@ -1,3 +1,4 @@
+import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.log4j.Logger
@@ -72,3 +73,9 @@ object TweetKafkaStreaming {
     ssm.awaitTermination()
   }
 }
+
+//    val sentimentAnalyzer = new SentimentAnalyzer("I like Serbia")
+//    sentimentAnalyzer.analyze()
+//    val polarities = sentimentAnalyzer.getPolarity
+//    val compoundPolarity = polarities.get("compound")
+//    print(compoundPolarity)

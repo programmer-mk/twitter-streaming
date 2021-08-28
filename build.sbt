@@ -79,7 +79,11 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
-        "log4j" % "log4j" % "1.2.14"
+        "log4j" % "log4j" % "1.2.14",
+
+        // for text analysis needed
+        "com.github.apanimesh061" % "vader-sentiment-analyzer" % "1.0",
+        "org.apache.lucene" % "lucene-analyzers-common" % "6.6.0"
       ),
       dockerSettings(true)
     )
