@@ -76,6 +76,7 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.hadoop" % "hadoop-client" % "3.2.0",
         "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
         "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
+        "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
