@@ -3,8 +3,10 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
+import com.danielasfregola.twitter4s.entities.Tweet
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
 
@@ -19,13 +21,13 @@ object TwitterProducer {
 
     val twitterClient = TwitterRestClient()
 
-    val props = new Properties()
-    props.put("bootstrap.servers", BROKER_LIST)
-    props.put("client.id", "KafkaTweetProducer")
-    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+//    val props = new Properties()
+//    props.put("bootstrap.servers", BROKER_LIST)
+//    props.put("client.id", "KafkaTweetProducer")
+//    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+//    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
 
-    val producer = new KafkaProducer[String, String](props)
+  //  val producer = new KafkaProducer[String, String](props)
     val test = false
     if(test) {
       var i = 0
@@ -35,19 +37,23 @@ object TwitterProducer {
         val data = new ProducerRecord[String, String](TOPIC, key, value)
         i +=1
         Thread.sleep(1000)
-        producer.send(data)
+        //producer.send(data)
         println(value)
       }
     } else {
+      var tweetsGlobal : ListBuffer[Tweet] = ListBuffer()
+
       while(true) {
         val searchTweets = twitterClient.searchTweet("microsoft")
         val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
         val completedResults = Await.result(searchTweets, maxWaitTime)
         completedResults.data.statuses foreach { tweet =>
           println(s"TweetId is: ${tweet.id}")
-          val data = new ProducerRecord[String, String](TOPIC, s"${tweet.text.substring(0,5)}-key", tweet.text)
-          producer.send(data)
+          //val data = new ProducerRecord[String, String](TOPIC, s"${tweet.text.substring(0,5)}-key", tweet.text)
+          //producer.send(data)
           println(s"TweetId text value: ${tweet.text}")
+          tweetsGlobal += tweet
+          print("hello")
         }
         Thread.sleep(20000)
       }

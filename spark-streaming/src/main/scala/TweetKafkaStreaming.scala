@@ -60,6 +60,8 @@ object TweetKafkaStreaming {
     // this writes to s3
     //inputDStream.saveAsTextFiles("s3a://test-spark-miki-bucket/output/spark_streaming-", ".txt")
 
+    // e napravi dva ovako inputDStream-a
+
     //this writes to std output
     inputDStream.foreachRDD { rdd =>
       // Get the offset
@@ -68,7 +70,7 @@ object TweetKafkaStreaming {
         log.info(s"rdd size: ${rdd.count()}")
         //val rdds2: RDD[(String, String)] = rdd.map(x => (x.key(), x.value())).cache()
         val rdds: RDD[(String, String, String, String)] = rdd.map(x => (x.key(), x.value(),
-          s"${computePolarity(x.value())}", Util.cleanDocument(x.value()))).cache()
+          s"${computePolarity(Util.cleanDocument(x.value()))}", Util.cleanDocument(x.value()))).cache()
         rdds.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
         rdds.collect().foreach { tweet =>
           log.info(s"key: ${tweet._1}, value: ${tweet._2}, polarity: ${tweet._3}, clened text: ${tweet._4}")
