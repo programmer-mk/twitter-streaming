@@ -9,7 +9,7 @@ scalaVersion := "2.11.8"
 resolvers += Resolver.sonatypeRepo("releases")
 
 
-  def dockerSettings(sparkImage: Boolean = false) = Seq(
+  def dockerSettings(sparkImage: Boolean = false, mainClass: String = "") = Seq(
 
     dockerfile in docker := {
       val artifactSource: File = assembly.value
@@ -22,9 +22,9 @@ resolvers += Resolver.sonatypeRepo("releases")
           from("bde2020/spark-worker:3.1.1-hadoop3.2")
           add(artifactSource, artifactTargetPath)
           copy(scriptSourceDir, projectDir)
-          env("AWS_ACCESS_KEY_ID", "xxxx")
-          env("AWS_SECRET_ACCESS_KEY", "xxxx")
-          env("SPARK_APPLICATION_MAIN_CLASS", "TweetKafkaStreaming")
+          env("AWS_ACCESS_KEY_ID", "xx")
+          env("AWS_SECRET_ACCESS_KEY", "xx")
+          env("SPARK_APPLICATION_MAIN_CLASS", mainClass)
           env("ENABLE_INIT_DAEMON", "false")
           run("chmod", "+x", "/project/template.sh")
           run("chmod", "+x", "/project/submit.sh")
@@ -76,11 +76,30 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.hadoop" % "hadoop-client" % "3.2.0",
         "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
         "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
+        "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
+        "log4j" % "log4j" % "1.2.14",
+
+        // for text analysis needed
+        "com.github.apanimesh061" % "vader-sentiment-analyzer" % "1.0",
+        "org.apache.lucene" % "lucene-analyzers-common" % "6.6.0"
+      ),
+      dockerSettings(true, "TweetKafkaStreaming")
+    )
+
+  lazy val sparkBatchProcessor = (project in file("spark-batch"))
+    .enablePlugins(sbtdocker.DockerPlugin)
+    .settings(
+      libraryDependencies ++= Seq(
+        "org.apache.hadoop" % "hadoop-common" % "3.2.0",
+        "org.apache.hadoop" % "hadoop-client" % "3.2.0",
+        "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
+        "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
+        "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "log4j" % "log4j" % "1.2.14"
       ),
-      dockerSettings(true)
+      dockerSettings(true, "SimpleApp")
     )
 

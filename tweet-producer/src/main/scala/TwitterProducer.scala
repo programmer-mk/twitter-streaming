@@ -3,8 +3,10 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
+import com.danielasfregola.twitter4s.entities.Tweet
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
 
@@ -15,43 +17,45 @@ object TwitterProducer {
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
-    val TOPIC = "tweets"
+    val TOPIC = "tweets-test2"
 
     val twitterClient = TwitterRestClient()
-    val nums = (1 to 10).toList
 
-    val props = new Properties()
-    props.put("bootstrap.servers", BROKER_LIST)
-    props.put("client.id", "KafkaTweetProducer")
-    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+//    val props = new Properties()
+//    props.put("bootstrap.servers", BROKER_LIST)
+//    props.put("client.id", "KafkaTweetProducer")
+//    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+//    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
 
-    val producer = new KafkaProducer[String, String](props)
-    val test = true
+  //  val producer = new KafkaProducer[String, String](props)
+    val test = false
     if(test) {
       var i = 0
       while(true) {
         val value = s"record-${i}"
-        val data = new ProducerRecord[String, String](TOPIC, value)
+        val key = s"key-${i}"
+        val data = new ProducerRecord[String, String](TOPIC, key, value)
         i +=1
         Thread.sleep(1000)
-        producer.send(data)
+        //producer.send(data)
         println(value)
       }
     } else {
-      while(true) {
-        val tweets = Future.sequence(nums.map { _ =>
-          val searchTweets = twitterClient.searchTweet("football")
-          searchTweets
-        })
+      var tweetsGlobal : ListBuffer[Tweet] = ListBuffer()
 
+      while(true) {
+        val searchTweets = twitterClient.searchTweet("microsoft")
         val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
-        val completedResults = Await.result(tweets, maxWaitTime)
-        completedResults.flatMap(_.data.statuses) foreach { tweet =>
-          val data = new ProducerRecord[String, String](TOPIC, tweet.text)
-          producer.send(data)
+        val completedResults = Await.result(searchTweets, maxWaitTime)
+        completedResults.data.statuses foreach { tweet =>
+          println(s"TweetId is: ${tweet.id}")
+          //val data = new ProducerRecord[String, String](TOPIC, s"${tweet.text.substring(0,5)}-key", tweet.text)
+          //producer.send(data)
+          println(s"TweetId text value: ${tweet.text}")
+          tweetsGlobal += tweet
+          print("hello")
         }
-        println(completedResults)
+        Thread.sleep(20000)
       }
     }
   }
