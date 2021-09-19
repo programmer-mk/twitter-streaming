@@ -5,6 +5,8 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
+import com.danielasfregola.twitter4s.entities.enums.Language
+import com.danielasfregola.twitter4s.entities.enums.Language.Language
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -42,7 +44,7 @@ object TwitterProducer {
       }
     } else {
       while(true) {
-        val searchTweets = twitterClient.searchTweet("microsoft")
+        val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
         val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
         val completedResults = Await.result(searchTweets, maxWaitTime)
         completedResults.data.statuses foreach { tweet =>
