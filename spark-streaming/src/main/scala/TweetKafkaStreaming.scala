@@ -1,3 +1,6 @@
+import java.time.Instant
+
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -23,18 +26,18 @@ object TweetKafkaStreaming {
   val kafkaParams: Map[String, Object] = Map[String, Object](
     "bootstrap.servers" -> brokers,
     "key.deserializer" -> classOf[StringDeserializer],
-    "value.deserializer" -> classOf[StringDeserializer],
+    "value.deserializer" -> classOf[TweetDeserializer],
     "group.id" -> groupId,
     "auto.offset.reset" -> "latest",
     "enable.auto.commit" -> (false: java.lang.Boolean)
   )
 
-  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, String]] ={
+  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, UserTweet]] ={
     // Use KafkaUtils.createDirectStream to create a data stream
-    val stream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    val stream: InputDStream[ConsumerRecord[String, UserTweet]] = KafkaUtils.createDirectStream[String, UserTweet](
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, UserTweet](topics, kafkaParams)
     )
     stream
   }
@@ -56,11 +59,9 @@ object TweetKafkaStreaming {
     ssm.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
    // @transient
-    val inputDStream: InputDStream[ConsumerRecord[String, String]] = getKafkaStream(ssm, topics)
+    val inputDStream: InputDStream[ConsumerRecord[String, UserTweet]] = getKafkaStream(ssm, topics)
     // this writes to s3
     //inputDStream.saveAsTextFiles("s3a://test-spark-miki-bucket/output/spark_streaming-", ".txt")
-
-    // e napravi dva ovako inputDStream-a
 
     //this writes to std output
     inputDStream.foreachRDD { rdd =>
@@ -69,8 +70,8 @@ object TweetKafkaStreaming {
       if(rdd.count() > 0) {
         log.info(s"rdd size: ${rdd.count()}")
         //val rdds2: RDD[(String, String)] = rdd.map(x => (x.key(), x.value())).cache()
-        val rdds: RDD[(String, String, String, String)] = rdd.map(x => (x.key(), x.value(),
-          s"${computePolarity(Util.cleanDocument(x.value()))}", Util.cleanDocument(x.value()))).cache()
+        val rdds: RDD[(String, String, String, String)] = rdd.map(x => (x.key(), x.value().getText,
+          s"${computePolarity(Util.cleanDocument(x.value().getText))}", Util.cleanDocument(x.value().getText))).cache()
         rdds.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
         rdds.collect().foreach { tweet =>
           log.info(s"key: ${tweet._1}, value: ${tweet._2}, polarity: ${tweet._3}, clened text: ${tweet._4}")
@@ -85,5 +86,4 @@ object TweetKafkaStreaming {
     ssm.awaitTermination()
   }
 }
-
 
