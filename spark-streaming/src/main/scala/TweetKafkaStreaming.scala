@@ -53,28 +53,24 @@ object TweetKafkaStreaming {
   def main(args: Array[String]): Unit = {
     val sparkConf: SparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName(getClass.getName)
     val ssm: StreamingContext = new StreamingContext(sparkConf, Seconds(30))
-    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "xx")
-    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "xx")
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
     ssm.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     ssm.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
-   // @transient
     val inputDStream: InputDStream[ConsumerRecord[String, UserTweet]] = getKafkaStream(ssm, topics)
-    // this writes to s3
-    //inputDStream.saveAsTextFiles("s3a://test-spark-miki-bucket/output/spark_streaming-", ".txt")
-
-    //this writes to std output
     inputDStream.foreachRDD { rdd =>
       // Get the offset
       val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
       if(rdd.count() > 0) {
         log.info(s"rdd size: ${rdd.count()}")
-        //val rdds2: RDD[(String, String)] = rdd.map(x => (x.key(), x.value())).cache()
-        val rdds: RDD[(String, String, String, String)] = rdd.map(x => (x.key(), x.value().getText,
-          s"${computePolarity(Util.cleanDocument(x.value().getText))}", Util.cleanDocument(x.value().getText))).cache()
-        rdds.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
+        val rdds: RDD[Seq[String]] = rdd.map(x => Seq(x.key(), s"${computePolarity(Util.cleanDocument(x.value().getText))}",
+          Util.cleanDocument(x.value().getText), x.value().getCreationTime.toString)).cache()
+        rdds.map { seq =>
+          seq.mkString(",")
+        }.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
         rdds.collect().foreach { tweet =>
-          log.info(s"key: ${tweet._1}, value: ${tweet._2}, polarity: ${tweet._3}, clened text: ${tweet._4}")
+          log.info(s"key: ${tweet(0)}, polarity: ${tweet(1)}, cleaned text: ${tweet(2)}, created date: ${tweet(3)}")
         }
       }
 

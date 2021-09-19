@@ -20,10 +20,13 @@ object SimpleApp {
     sc.hadoopConfiguration.set("fs.s3a.secret.key", awsCredentials._2)
     sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    sc.hadoopConfiguration.set("mapreduce.input.fileinputformat.input.dir.recursive","true")
 
-    val logData = sc.textFile("s3a://test-spark-miki-bucket/").cache()
-    logData.filter(line => line.contains("a")).collect().foreach(log.info)
-    logData.filter(line => line.contains("b")).collect().foreach(log.info)
+    val logData = sc.textFile("s3a://test-spark-miki-bucket/output/").cache()
+    logData.collect().foreach { tweet =>
+      tweet.split(",")
+      log.info(s"$tweet")
+    }
     sc.stop()
   }
 }
