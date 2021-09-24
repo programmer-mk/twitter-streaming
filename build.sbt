@@ -109,6 +109,6 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "log4j" % "log4j" % "1.2.14"
       ),
-      dockerSettings(true, "SimpleApp")
+      dockerSettings(true, "TweetPolarityAggregator")
     )
 

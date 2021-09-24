@@ -2,7 +2,7 @@ import org.apache.log4j.Logger
 import org.apache.spark.{SparkConf, SparkContext}
 import java.text.SimpleDateFormat
 
-object SimpleApp {
+object TweetPolarityAggregator {
 
   def getAwsCredentials: (String, String) = {
     val accessKeyId = System.getenv("AWS_ACCESS_KEY_ID")
@@ -42,6 +42,9 @@ object SimpleApp {
     val sumPartitionCounts = (p1: Double, p2: Double) => p1 + p2
 
     val aggregatedResults = datePolarityGrouped.aggregateByKey(initialCount)(addToCounts, sumPartitionCounts)
+        .map { tuple =>
+          Seq(tuple._1, tuple._2.toString).mkString(",")
+        }
 
     aggregatedResults.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/aggregated-results")
 
