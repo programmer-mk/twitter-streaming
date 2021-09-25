@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: pulling stocks data from public APIs
+Parameters:
+  Name:
+    Type: String
+    Description: project name
+  Environment:
+    Type: String
+    Description: Usage in environment
+  StockApiHostName:
+    Type: String
+    Description: public API provider host for stock data
+  StockApiResource:
+    Type: String
+    Description: public API provider resource for stock data
+  BucketName:
+    Type: String
+    Description: bucket for storing stock price data
+Resources:
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LambdaRole
+      - SecretCredentials
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import urllib3
+          import logging
+          import json
+          import os
+          from botocore.exceptions import ClientError
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          BUCKET_NAME = os.environ['BUCKET_NAME']
+          STOCK_API_HOST_NAME = os.environ['STOCK_API_HOST_NAME']
+          STOCK_API_RESOURCE =  os.environ['STOCK_API_RESOURCE']
+          SECRET_NAME = os.environ['SECRET_NAME']
+
+          # TESLA, GOOGLE, NETFLIX, MICROSOFT, AMAZON, FACEBOOK, TWITTER
+          target_company_symbols = ['TSLA.US','MSFT.US', 'AMZN.US', 'AAPL.US', 'BTC-USD.CC']
+
+          def get_secret(secret_name):
+            session = boto3.session.Session()
+            client = session.client(service_name='secretsmanager', region_name='eu-west-2')
+            try:
+              logger.info('Getting value from secret: %s',secret_name)
+              response = client.get_secret_value(SecretId=secret_name)
+            except ClientError as e:
+              logger.error('Got an error trying to get secret, error: %s', e.__str__())
+              return None, None
+            else:
+              if 'SecretString' in response:
+                secret = response['SecretString']
+                logger.debug('Got ok response with string secret value')
+                return json.loads(secret), None
+              else:
+                decoded_binary_secret = base64.b64decode(response['SecretBinary'])
+                logger.debug('Got ok response with binary secret value')
+                return None, decoded_binary_secret
+
+          def save_data_to_s3(data, symbol):
+            text_file = open("/tmp/{symbol}-daily-stocks.csv", "w")
+            text_file.write(data)
+            text_file.close()
+
+            s3 = boto3.resource('s3')
+            bucket = s3.Bucket(BUCKET_NAME)
+            key = f'stock-price-data/{symbol}-daily-stocks.csv'
+            bucket.upload_file('/tmp/{symbol}-daily-stocks.csv', key)
+
+          def get_stock_daily_data(token, symbol):
+            http = urllib3.PoolManager()
+            params = {
+               "api_token": token
+            }
+            url = f'{STOCK_API_HOST_NAME}{STOCK_API_RESOURCE}{symbol}'
+            logger.info(f'url: {url}')
+            try:
+                response = http.request("GET", url, fields=params)
+                data = str(response.data, 'utf-8')
+                #logger.info(f'fetched data: {data} for symbol: {symbol}')
+            except Exception as e:
+                print('Exception occured: {}. Stock data was not fetched'.format(e))
+                data = None
+            return data
+
+          def handler(event, context):
+            secret_string, secret_bin = get_secret(SECRET_NAME)
+            api_token = secret_string['apiToken']
+            for symbol in target_company_symbols:
+              data = get_stock_daily_data(api_token, symbol)
+              save_data_to_s3(data, symbol)
+              logger.info(f'saved daily stocks for {symbol}')
+      Environment:
+        Variables:
+          STOCK_API_HOST_NAME: !Ref StockApiHostName
+          STOCK_API_RESOURCE: !Ref StockApiResource
+          SECRET_NAME: !Sub "${Name}-${Environment}-secret"
+          BUCKET_NAME: !Ref BucketName
+      FunctionName: !Sub "${Name}-${Environment}-lambda"
+      Description: pull daily stock data from public API and store it to s3
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: "python3.8"
+      Timeout: 15
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Name}-${Environment}-lambda"
+      RetentionInDays: 30
+
+  SecretCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub 'Contains secret values for ${Name} ${Environment}'
+      SecretString: >
+        {
+          "apiToken": "dummy"
+        }
+      Name: !Sub "${Name}-${Environment}-secret"
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Name}-${Environment}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: lambda-logs-access-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: secret-access-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:*:*:secret:${Name}-${Environment}-secret-*"
