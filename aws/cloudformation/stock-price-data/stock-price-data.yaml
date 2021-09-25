@@ -114,6 +114,18 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${Name}-${Environment}-lambda"
       RetentionInDays: 30
 
+  DailyCronEvent:
+    Type: AWS::Events::Rule
+    DependsOn: LambdaFunction
+    Properties:
+      Description: "Trigger lambda based on a crone expression"
+      # Run at 10:00 am (UTC) every day
+      ScheduleExpression: "cron(0 10 * * ? *)"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn
+          Id: LambdaFunction
+
   SecretCredentials:
     Type: AWS::SecretsManager::Secret
     Properties:
