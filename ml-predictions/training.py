@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
@@ -46,6 +47,12 @@ def RSI(data, period = 14, column = 'Close'):
 
     data['RSI'] = RSI
     return data
+
+
+def save_models(estimators):
+    for estimator in estimators:
+        for estimator_key in estimator:
+            joblib.dump(estimator[estimator_key], f'{estimator_key}-estimator.pkl', compress=1)
 
 
 def preprocess_data(data):
@@ -143,6 +150,11 @@ def nested_cv_decission_tree(X, Y):
 if __name__ == '__main__':
     data = load_data()
     X, Y = preprocess_data(data)
-    nested_cv_logistic_regression(X, Y)
-    nested_cv_svm(X,Y)
-    nested_cv_decission_tree(X, Y)
+    lg_estimator = nested_cv_logistic_regression(X, Y)
+    svm_estimator = nested_cv_svm(X,Y)
+    dt_estimator = nested_cv_decission_tree(X, Y)
+    save_models([
+        {"lg":lg_estimator},
+        {"svm":svm_estimator},
+        {"dt":dt_estimator}
+    ])
