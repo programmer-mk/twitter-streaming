@@ -69,8 +69,6 @@ def preprocess_data(data):
 
 
 def nested_cv_logistic_regression(X, Y):
-    NUM_TRIALS = 3
-    nested_scores = np.zeros(NUM_TRIALS)
     param_grid = {"logisticregression__C": [0.0001, 0.0005, 0.001, 0.01, 0.3, 0.5, 1, 5, 10],
               "logisticregression__penalty":["l1","l2"],
               "logisticregression__solver": ["liblinear", "saga"]
@@ -79,16 +77,20 @@ def nested_cv_logistic_regression(X, Y):
     lgr = LogisticRegression(max_iter=20000)
     pipeline = Pipeline([('scaler', MinMaxScaler()), ('logisticregression', lgr)])
 
-    for i in range(NUM_TRIALS):
-        inner_cv = KFold(n_splits=5, shuffle=True, random_state=i)
-        outer_cv = KFold(n_splits=5, shuffle=True, random_state=i)
 
-        # Nested CV with parameter optimization
-        clf = GridSearchCV(pipeline, param_grid=param_grid, cv=inner_cv)
-        nested_score = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
-        nested_scores[i] = nested_score.mean()
+    inner_cv = KFold(n_splits=5, shuffle=True, random_state=1)
+    outer_cv = KFold(n_splits=5, shuffle=True, random_state=1)
 
-    print(f'Results after cross-validation logistic regression {nested_scores} \n')
+    # Nested CV with parameter optimization
+    clf = GridSearchCV(pipeline, param_grid=param_grid, cv=inner_cv)
+    nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
+    nested_score = nested_scores.mean()
+
+    print(f'Results after cross-validation logistic regression {nested_score} \n')
+
+    clf.fit(X, Y)
+    print(f'best estimator: {clf.best_estimator_}')
+    print(f'best params: {clf.best_params_}')
 
 
 def nested_cv_svm(X, Y):
