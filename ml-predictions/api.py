@@ -34,8 +34,8 @@ app = Flask(__name__)
 
 @app.route('/line/<Line>')
 def line(Line):
-    data = pd.read_csv('test.csv')
-    target_line = data[data['Index'] == Line]
+    data = pd.read_csv('/home/jovyan/ml-predictions/data/test.csv')
+    target_line = data[data['Index'] == int(Line)]
     return {
         "data": json.loads(target_line.to_json(orient='records'))[0]
     }
@@ -44,19 +44,17 @@ def line(Line):
 # Flask route so that we can serve HTTP traffic on that route
 @app.route('/prediction/<int:Line>', methods=['POST', 'GET'])
 def prediction(Line):
-    data = pd.read_csv('./test.csv')
+    Line = int(Line)
+    data = pd.read_csv('/home/jovyan/ml-predictions/data/test.csv')
     target_line = data[data['Index'] == Line].drop(['Index'], axis=1)
+    print(f'target line: {target_line}')
     Y_test = target_line['Target'].values
-    X_test = target_line.drop(['Target'], axis=1)
+    X_test = target_line.drop(['Target'], axis=1).values
 
     print(f'Real value: {Y_test}')
 
     prediction_msft_lg = msft_lg_model.predict(X_test)
-
-    #msft_svm_model = load(MSFT_SVM_MODEL_PATH) --> should not be needed
     prediction_msft_svm = msft_svm_model.predict(X_test)
-
-    #msft_dt_model = load(MSFT_DT_MODEL_PATH) --> should not be needed
     prediction_msft_dt = msft_dt_model.predict(X_test)
 
     return {
@@ -68,9 +66,9 @@ def prediction(Line):
 
 @app.route('/score',methods=['POST', 'GET'])
 def score():
-    data = pd.read_csv('./test.csv')
+    data = pd.read_csv('/home/jovyan/ml-predictions/data/test.csv')
     y_test = data['Target'].values
-    X_test = data.drop(['Target'], axis=1)
+    X_test = data.drop(['Target', 'Index'], axis=1)
 
     msft_lg_score = msft_lg_model.score(X_test, y_test)
     msft_svm_score = msft_svm_model.score(X_test, y_test)

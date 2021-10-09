@@ -12,7 +12,7 @@ from sklearn.pipeline import Pipeline
 
 
 def load_data():
-    return pd.read_csv('data/MSFT.US-historical-stocks.csv')
+    return pd.read_csv('/home/jovyan/ml-predictions/data/MSFT.US-historical-stocks.csv')
 
 
 def SMA(data, period=30, column='Close'):
@@ -70,7 +70,7 @@ def preprocess_data(data):
 
     keep_columns = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
     keep_columns_test = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA', 'Target']
-    data_verification[keep_columns_test].to_csv('data/test.csv', index=True, index_label='Index')
+    #data_verification[keep_columns_test].to_csv('/home/jovyan/ml-predictions/data/test.csv', index=True, index_label='Index')
     features = data_build[keep_columns].values
     labels = data_build['Target'].values
     return features, labels
