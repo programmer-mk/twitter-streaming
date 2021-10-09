@@ -62,16 +62,17 @@ def preprocess_data(data):
     data['EMA'] = EMA(data)
     data = data.dropna()
 
-    data = data[(data['Date'] >= '2016-01-01') & (data['Date'] < '2021-09-24')]
-    #print(data)
-
     #Create the target column
     data['Target'] = np.where(data['Close'].shift(-7) > data['Close'], 1, 0) # if before 7 days price is lower than todays price put 1 else put 0
 
+    data_build = data[(data['Date'] >= '2016-01-01') & (data['Date'] < '2021-07-24')]
+    data_verification = data[(data['Date'] >= '2021-07-24') & (data['Date'] < '2021-08-29')]
+
     keep_columns = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
-    #keep_columns = ['Open', 'High', 'Low', 'Close', 'Adjusted_close', 'Volume']
-    features = data[keep_columns].values
-    labels = data['Target'].values
+    keep_columns_test = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA', 'Target']
+    data_verification[keep_columns_test].to_csv('data/test.csv', index=True, index_label='Index')
+    features = data_build[keep_columns].values
+    labels = data_build['Target'].values
     return features, labels
 
 
@@ -83,7 +84,6 @@ def nested_cv_logistic_regression(X, Y):
 
     lgr = LogisticRegression(max_iter=20000)
     pipeline = Pipeline([('scaler', MinMaxScaler()), ('logisticregression', lgr)])
-
 
     inner_cv = KFold(n_splits=5, shuffle=True, random_state=1)
     outer_cv = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -98,6 +98,7 @@ def nested_cv_logistic_regression(X, Y):
     clf.fit(X, Y)
     print(f'best estimator: {clf.best_estimator_}')
     print(f'best params: {clf.best_params_}')
+    return clf
 
 
 def nested_cv_svm(X, Y):
@@ -122,6 +123,8 @@ def nested_cv_svm(X, Y):
     print(f'best estimator: {clf.best_estimator_}')
     print(f'best params: {clf.best_params_}')
 
+    return clf
+
 
 def nested_cv_decission_tree(X, Y):
     param_grid = {'tree__max_features': ['auto', 'sqrt', 'log2'],
@@ -145,6 +148,8 @@ def nested_cv_decission_tree(X, Y):
     clf.fit(X, Y)
     print(f'best estimator: {clf.best_estimator_}')
     print(f'best params: {clf.best_params_}')
+
+    return clf
 
 
 if __name__ == '__main__':
