@@ -3,8 +3,7 @@ import pandas as pd
 from joblib import load
 from sklearn import preprocessing
 import json
-
-from flask import Flask
+from flask import Flask,request, jsonify
 
 # Set environnment variables
 MODEL_DIR = os.environ["MODEL_DIR"]
@@ -78,6 +77,14 @@ def score():
         'score logistic regression': msft_lg_score,
         'scpre support vector machine': msft_svm_score,
         'score decission tree': msft_dt_score
+    }
+
+@app.route('/tweets',methods=['POST'])
+def tweets():
+    content = request.json
+    print(content)
+    return {
+        "status": "ok"
     }
 
 
