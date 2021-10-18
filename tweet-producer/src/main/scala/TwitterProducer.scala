@@ -17,18 +17,18 @@ object TwitterProducer {
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
-    val TOPIC = "tweets-test2"
+    val TOPIC = "tweet-upload-5"
 
     val twitterClient = TwitterRestClient()
 
-//    val props = new Properties()
-//    props.put("bootstrap.servers", BROKER_LIST)
-//    props.put("client.id", "KafkaTweetProducer")
-//    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-//    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    val props = new Properties()
+    props.put("bootstrap.servers", BROKER_LIST)
+    props.put("client.id", "KafkaTweetProducer")
+    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
 
-  //  val producer = new KafkaProducer[String, String](props)
-    val test = false
+    val producer = new KafkaProducer[String, String](props)
+    val test = true
     if(test) {
       var i = 0
       while(true) {
@@ -37,7 +37,7 @@ object TwitterProducer {
         val data = new ProducerRecord[String, String](TOPIC, key, value)
         i +=1
         Thread.sleep(1000)
-        //producer.send(data)
+        producer.send(data)
         println(value)
       }
     } else {

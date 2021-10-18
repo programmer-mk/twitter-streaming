@@ -76,6 +76,7 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.hadoop" % "hadoop-client" % "3.2.0",
         "org.apache.hadoop" % "hadoop-aws" % "3.2.0",
         "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
+        "org.apache.spark" %% "spark-sql" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
@@ -84,7 +85,10 @@ resolvers += Resolver.sonatypeRepo("releases")
 
         // for text analysis needed
         "com.github.apanimesh061" % "vader-sentiment-analyzer" % "1.0",
-        "org.apache.lucene" % "lucene-analyzers-common" % "6.6.0"
+        "org.apache.lucene" % "lucene-analyzers-common" % "6.6.0",
+
+        // mysql connection
+        "mysql" % "mysql-connector-java" % "8.0.25"
       ),
       dockerSettings(true, "TweetKafkaStreaming")
     )

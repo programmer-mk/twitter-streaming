@@ -1,0 +1,17 @@
+
+Commands:
+
+    1) docker-compose up --> run mysql container from mysql base image
+    2) docker exec -it dashboards_db_1 bash --> accessing mysql db container
+    3) mysql -uroot -proot --> execute on mysql container
+
+    4)  USE test_db;
+        CREATE TABLE IF NOT EXISTS tweets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            t_key VARCHAR(255) NOT NULL,
+            text VARCHAR(255) NOT NULL,
+            processed_text VARCHAR(255) NOT NULL,
+            created VARCHAR(255)  NOT NULL
+        )
+
+    5)
