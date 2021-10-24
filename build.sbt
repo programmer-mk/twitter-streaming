@@ -80,6 +80,7 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "org.apache.spark" %% "spark-streaming" % "3.1.1" % "provided",
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
+        "org.apache.spark" % "spark-sql-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
         "log4j" % "log4j" % "1.2.14",
 
@@ -90,7 +91,7 @@ resolvers += Resolver.sonatypeRepo("releases")
         // mysql connection
         "mysql" % "mysql-connector-java" % "8.0.25"
       ),
-      dockerSettings(true, "TweetKafkaStreaming")
+      dockerSettings(true, "KafkaStructuredStreaming")
     )
 
   lazy val sparkBatchProcessor = (project in file("spark-batch"))

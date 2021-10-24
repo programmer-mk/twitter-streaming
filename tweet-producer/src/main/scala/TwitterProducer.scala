@@ -17,7 +17,7 @@ object TwitterProducer {
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
-    val TOPIC = "tweet-upload-5"
+    val TOPIC = "tweet-upload-teest"
 
     val twitterClient = TwitterRestClient()
 
