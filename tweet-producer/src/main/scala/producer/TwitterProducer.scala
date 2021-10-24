@@ -1,14 +1,16 @@
+package producer
+
+import java.time.Instant
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
-import com.danielasfregola.twitter4s.entities.Tweet
+import com.danielasfregola.twitter4s.entities.enums.Language
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext}
 
 object TwitterProducer {
 
@@ -25,35 +27,36 @@ object TwitterProducer {
     props.put("bootstrap.servers", BROKER_LIST)
     props.put("client.id", "KafkaTweetProducer")
     props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("value.serializer", "model.TweetSerializer")
 
-    val producer = new KafkaProducer[String, String](props)
-    val test = true
+    val producer = new KafkaProducer[String, UserTweet](props)
+    val test = false
     if(test) {
       var i = 0
       while(true) {
         val value = s"record-${i}"
         val key = s"key-${i}"
-        val data = new ProducerRecord[String, String](TOPIC, key, value)
+        val dummyTweet = new UserTweet(key, value, Instant.now())
+        val data = new ProducerRecord[String, UserTweet](TOPIC, key, dummyTweet)
         i +=1
         Thread.sleep(1000)
         producer.send(data)
         println(value)
       }
     } else {
-      var tweetsGlobal : ListBuffer[Tweet] = ListBuffer()
-
       while(true) {
-        val searchTweets = twitterClient.searchTweet("microsoft")
+        val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
         val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
         val completedResults = Await.result(searchTweets, maxWaitTime)
         completedResults.data.statuses foreach { tweet =>
           println(s"TweetId is: ${tweet.id}")
-          //val data = new ProducerRecord[String, String](TOPIC, s"${tweet.text.substring(0,5)}-key", tweet.text)
+
           //producer.send(data)
           println(s"TweetId text value: ${tweet.text}")
-          tweetsGlobal += tweet
-          print("hello")
+          val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at)
+          println(s"tweet value is: $userTweet.text")
+          val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
+          producer.send(data)
         }
         Thread.sleep(20000)
       }

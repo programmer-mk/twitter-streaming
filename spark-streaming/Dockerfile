@@ -21,7 +21,7 @@ COPY template.sh /
 COPY test-script.sh /test-script.sh
 COPY instructions.txt /app/
 
-ENV SPARK_APPLICATION_MAIN_CLASS SimpleApp
+ENV SPARK_APPLICATION_MAIN_CLASS TweetPolarityAggregator
 ENV AWS_ACCESS_KEY_ID xxx
 ENV AWS_SECRET_ACCESS_KEY xxx
 
