@@ -1,6 +1,6 @@
-import java.sql.DriverManager
-import java.util.Properties
+import java.time.Instant
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -28,18 +28,18 @@ object TweetKafkaStreaming {
   val kafkaParams: Map[String, Object] = Map[String, Object](
     "bootstrap.servers" -> brokers,
     "key.deserializer" -> classOf[StringDeserializer],
-    "value.deserializer" -> classOf[StringDeserializer],
+    "value.deserializer" -> classOf[TweetDeserializer],
     "group.id" -> groupId,
     "auto.offset.reset" -> "latest",
     "enable.auto.commit" -> (false: java.lang.Boolean)
   )
 
-  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, String]] ={
+  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, UserTweet]] ={
     // Use KafkaUtils.createDirectStream to create a data stream
-    val stream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    val stream: InputDStream[ConsumerRecord[String, UserTweet]] = KafkaUtils.createDirectStream[String, UserTweet](
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, UserTweet](topics, kafkaParams)
     )
     stream
   }
@@ -53,60 +53,28 @@ object TweetKafkaStreaming {
   }
 
   def main(args: Array[String]): Unit = {
-    try {
-      val sparkConf: SparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName(getClass.getName).set("spark.streaming.concurrentJobs","2")
-      val ssm: StreamingContext = new StreamingContext(sparkConf, Seconds(20))
-      ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "xx")
-      ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "xx/FmWal06yn")
-      ssm.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
-      ssm.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    val sparkConf: SparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName(getClass.getName)
+    val ssm: StreamingContext = new StreamingContext(sparkConf, Seconds(30))
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
-
-
-      val inputDStream: InputDStream[ConsumerRecord[String, String]] = getKafkaStream(ssm, topics)
-
-      // this writes to s3
-      //inputDStream.saveAsTextFiles(s"s3a://test-spark-miki-bucket/output/spark_streaming-${inputDStream.id}", ".txt")
-
-      // e napravi dva ovako inputDStream-a
-
-//      val jdbcDriver = "com.mysql.cj.jdbc.Driver"
-//      val jdbcUrl = "jdbc:mysql://db:3306"
-//      val connectionProperties = new Properties
-//      connectionProperties.put("username", "root")
-//      connectionProperties.put("password", "root")
-//      //connectionProperties.put("jdbcUrl", jdbcUrl)
-//      connectionProperties.put("driver", jdbcDriver)
-//      connectionProperties.put("dbName", "test_db")
-
-
-        inputDStream.map(x => (0, x.key(), x.value(),s"${computePolarity(Util.cleanDocument(x.value()))}", Util.cleanDocument(x.value()))).foreachRDD{ rdd =>
-          rdd.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
+    val inputDStream: InputDStream[ConsumerRecord[String, UserTweet]] = getKafkaStream(ssm, topics)
+    inputDStream.foreachRDD { rdd =>
+      // Get the offset
+      val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
+      if(rdd.count() > 0) {
+        log.info(s"rdd size: ${rdd.count()}")
+        val rdds: RDD[Seq[String]] = rdd.map(x => Seq(x.key(), s"${computePolarity(Util.cleanDocument(x.value().getText))}",
+          Util.cleanDocument(x.value().getText), x.value().getCreationTime.toString)).cache()
+        rdds.map { seq =>
+          seq.mkString(",")
+        }.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
+        rdds.collect().foreach { tweet =>
+          log.info(s"key: ${tweet(0)}, polarity: ${tweet(1)}, cleaned text: ${tweet(2)}, created date: ${tweet(3)}")
         }
-
-        inputDStream.foreachRDD { rdd =>
-        // Get the offset
-        val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
-
-//          val rdds: RDD[(Int, String, String, String, String)] = rdd.map(x => (0, x.key(), x.value(),
-//            s"${computePolarity(Util.cleanDocument(x.value()))}", Util.cleanDocument(x.value()))).cache()
-//           rdds.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
-
-          rdd.foreachPartition(partionOfRecords => {
-          val url = "jdbc:mysql://db:3306/test_db"
-          val user = "root"
-          val password = "root"
-          Class.forName("com.mysql.cj.jdbc.Driver")
-          val conn = DriverManager.getConnection(url, user, password)
-          conn.setAutoCommit(false)
-          val stmt = conn.createStatement()
-          partionOfRecords.foreach(_ => {
-            stmt.addBatch(
-              "insert into tweets(t_key,text,processed_text,created) values('" + "test" + "','" + "test" + "','" + "test" + "','" + "test"+ "')")
-          })
-          stmt.executeBatch()
-          conn.commit()
-        })
+      }
 
         // After a period of time, after the calculation is completed, the offset is submitted asynchronously
         inputDStream.asInstanceOf[CanCommitOffsets].commitAsync(offsetRanges)
@@ -114,10 +82,6 @@ object TweetKafkaStreaming {
 
       ssm.start()
       ssm.awaitTermination()
-    } catch {
-      case e: Exception => log.error(s"Got some other kind of exception $e")
-    }
   }
 }
-
 
