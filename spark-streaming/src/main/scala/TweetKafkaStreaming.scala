@@ -2,6 +2,11 @@ import java.time.Instant
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.vader.sentiment.analyzer.SentimentAnalyzer
+import org.apache.commons.io.IOUtils
+import org.apache.http.HttpHeaders
+import org.apache.http.client.methods.HttpPost
+import org.apache.http.entity.{ContentType, StringEntity}
+import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.log4j.Logger
