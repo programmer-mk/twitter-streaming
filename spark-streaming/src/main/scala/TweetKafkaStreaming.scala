@@ -1,3 +1,6 @@
+import java.time.Instant
+
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.commons.io.IOUtils
 import org.apache.http.HttpHeaders
@@ -28,18 +31,18 @@ object TweetKafkaStreaming {
   val kafkaParams: Map[String, Object] = Map[String, Object](
     "bootstrap.servers" -> brokers,
     "key.deserializer" -> classOf[StringDeserializer],
-    "value.deserializer" -> classOf[StringDeserializer],
+    "value.deserializer" -> classOf[TweetDeserializer],
     "group.id" -> groupId,
     "auto.offset.reset" -> "latest",
     "enable.auto.commit" -> (false: java.lang.Boolean)
   )
 
-  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, String]] ={
+  def getKafkaStream(ssc: StreamingContext, topics: Array[String]): InputDStream[ConsumerRecord[String, UserTweet]] ={
     // Use KafkaUtils.createDirectStream to create a data stream
-    val stream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    val stream: InputDStream[ConsumerRecord[String, UserTweet]] = KafkaUtils.createDirectStream[String, UserTweet](
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, UserTweet](topics, kafkaParams)
     )
     stream
   }
@@ -55,36 +58,24 @@ object TweetKafkaStreaming {
   def main(args: Array[String]): Unit = {
     val sparkConf: SparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName(getClass.getName)
     val ssm: StreamingContext = new StreamingContext(sparkConf, Seconds(30))
-    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "xx")
-    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "xx")
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
+    ssm.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
     ssm.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     ssm.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
-   // @transient
-    val inputDStream: InputDStream[ConsumerRecord[String, String]] = getKafkaStream(ssm, topics)
-    // this writes to s3
-    //inputDStream.saveAsTextFiles("s3a://test-spark-miki-bucket/output/spark_streaming-", ".txt")
-
-    // e napravi dva ovako inputDStream-a
-
-    //this writes to std output
+    val inputDStream: InputDStream[ConsumerRecord[String, UserTweet]] = getKafkaStream(ssm, topics)
     inputDStream.foreachRDD { rdd =>
       // Get the offset
       val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
       if(rdd.count() > 0) {
         log.info(s"rdd size: ${rdd.count()}")
-        val rdds: RDD[(String, String, String, String)] = rdd.map(x => (x.key(), x.value(),
-          s"${computePolarity(Util.cleanDocument(x.value()))}", Util.cleanDocument(x.value()))).cache()
-        rdds.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
+        val rdds: RDD[Seq[String]] = rdd.map(x => Seq(x.key(), s"${computePolarity(Util.cleanDocument(x.value().getText))}",
+          Util.cleanDocument(x.value().getText), x.value().getCreationTime.toString)).cache()
+        rdds.map { seq =>
+          seq.mkString(",")
+        }.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")
         rdds.collect().foreach { tweet =>
-          log.info(s"key: ${tweet._1}, value: ${tweet._2}, polarity: ${tweet._3}, clened text: ${tweet._4}")
-          val client = HttpClients.createDefault
-          val httpPost = new HttpPost("http://ml-predictions:5000/tweets") // change host to flask metrics server
-          val data = s"{'key':${tweet._1},'value':${tweet._2}, 'polarity': ${tweet._3}, clened text: ${tweet._4} }"
-          val entity = new StringEntity(data);
-          httpPost.setEntity(entity)
-          val response = client.execute(httpPost)
-          log.info(response)
+          log.info(s"key: ${tweet(0)}, polarity: ${tweet(1)}, cleaned text: ${tweet(2)}, created date: ${tweet(3)}")
         }
       }
 
@@ -96,5 +87,4 @@ object TweetKafkaStreaming {
     ssm.awaitTermination()
   }
 }
-
 
