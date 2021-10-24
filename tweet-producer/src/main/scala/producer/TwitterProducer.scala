@@ -45,20 +45,21 @@ object TwitterProducer {
       }
     } else {
       while(true) {
-        val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
-        val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
-        val completedResults = Await.result(searchTweets, maxWaitTime)
-        completedResults.data.statuses foreach { tweet =>
-          println(s"TweetId is: ${tweet.id}")
-
-          //producer.send(data)
-          println(s"TweetId text value: ${tweet.text}")
-          val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at)
-          println(s"tweet value is: $userTweet.text")
-          val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
-          producer.send(data)
+        try {
+          val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
+          val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
+          val completedResults = Await.result(searchTweets, maxWaitTime)
+          completedResults.data.statuses foreach { tweet =>
+            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at)
+            println(s"tweet value is: $userTweet.text")
+            val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
+            producer.send(data)
+          }
+          Thread.sleep(3000)
+        } catch {
+          case e: java.util.concurrent.TimeoutException => println(s"Timeout occured. Sleeping for 1 second.Error: $e")
+          case e: Exception => println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
         }
-        Thread.sleep(20000)
       }
     }
   }
