@@ -56,7 +56,12 @@ resolvers += Resolver.sonatypeRepo("releases")
     .settings(
       libraryDependencies ++= Seq(
         "com.danielasfregola" %% "twitter4s" % "6.2",
-        "org.apache.kafka" % "kafka_2.11" % "0.10.0.0" withSources() exclude("org.slf4j", "slf4j-log4j12") exclude("javax.jms", "jms") exclude("com.sun.jdmk", "jmxtools") exclude("com.sun.jmx", "jmxri")
+        "org.apache.kafka" % "kafka_2.11" % "0.10.0.0" withSources() exclude("org.slf4j", "slf4j-log4j12") exclude("javax.jms", "jms") exclude("com.sun.jdmk", "jmxtools") exclude("com.sun.jmx", "jmxri"),
+        "org.apache.kafka" % "kafka-clients" % "2.8.0",
+        "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
+        "com.fasterxml.jackson.core" % "jackson-databind" % "2.5.3",
+        "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.8.4",
+        "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % "2.12.5"
       ),
       dockerSettings()
     )
@@ -81,6 +86,10 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
         "log4j" % "log4j" % "1.2.14",
+        "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
+        "com.fasterxml.jackson.core" % "jackson-databind" % "2.5.3",
+        "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.8.4",
+        "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % "2.12.5",
 
         // for text analysis needed
         "com.github.apanimesh061" % "vader-sentiment-analyzer" % "1.0",
@@ -100,6 +109,6 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" %% "spark-mllib" % "3.1.1" % "provided",
         "log4j" % "log4j" % "1.2.14"
       ),
-      dockerSettings(true, "SimpleApp")
+      dockerSettings(true, "TweetPolarityAggregator")
     )
 
