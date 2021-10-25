@@ -1,14 +1,24 @@
+import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.types.{StringType, StructType}
-import org.apache.spark.sql.functions.{from_json, col}
+import org.apache.spark.sql.functions.{col, from_json, lit}
+import streaming.Util
 
 object KafkaStructuredStreaming {
 
   val log: Logger = Logger.getLogger(getClass.getName)
 
-  case class UserTweet(id: String, text: String, creationTime: String)
+  case class UserTweet(id: Long, t_key: String, text: String, processed_text: String, polarity: Double, created: String)
+
+  def computePolarity = (input: String) => {
+    val sentimentAnalyzer = new SentimentAnalyzer(input)
+    sentimentAnalyzer.analyze()
+    val polarities = sentimentAnalyzer.getPolarity
+    val compoundPolarity = polarities.get("compound")
+    compoundPolarity
+  }
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession
@@ -35,21 +45,25 @@ object KafkaStructuredStreaming {
       .option("group.id", "kafka-spark-integration")
       .load()
 
-
     val schema = new StructType()
-      .add("id",StringType)
+      .add("key",StringType)
       .add("text",StringType)
-      .add("creationTime",StringType)
+      .add("created",StringType)
 
-    val tweetDf = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").select(from_json(col("value"), schema).as("data"))
-      .select("data.*")
+    val computePolarityUdf = spark.udf.register("computePolarity", computePolarity)
+    val cleanTextUdf = spark.udf.register("cleanTextUdf", Util.cleanDocument)
 
-    val tweetDataSet = tweetDf.as[UserTweet]
+    val tweetDataset = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .select(col("key").as("t_key"), from_json(col("value"), schema).as("data"))
+      .select(col("t_key"), col("data.text"), col("data.created")).withColumn("id", lit(0))
+      .withColumn("processed_text", cleanTextUdf(col("text")))
+      .withColumn("polarity", computePolarityUdf(col("processed_text")))
+      .as[UserTweet]
 
-    val stream = tweetDataSet.writeStream
+    val stream = tweetDataset.writeStream
       .outputMode("append")
       .format("csv")
-      .option("header", "false")
+      .option("header", "true")
       .option("sep", ",")
       .option("path", "s3a://test-spark-miki-bucket/output")
       .option("checkpointLocation", "s3a://test-spark-miki-bucket/streaming/checkpoint")
@@ -60,28 +74,25 @@ object KafkaStructuredStreaming {
     val user ="root"
     val password = "root"
 
-    //val writer = new JDBCSink(url,user, password)
-
-//    val query = tweetDataSet.writeStream
-//        .format("jdbc")
-//        .trigger(Trigger.ProcessingTime("10 seconds"))
-//        .foreachBatch((batchDF: Dataset[Tweet], batchId: Long) => {
-//        if (!batchDF.isEmpty) {
-//          batchDF.coalesce(1)
-//            .write
-//            .mode(SaveMode.Append)
-//            .format("jdbc")
-//            .option("driver", "com.mysql.cj.jdbc.Driver")
-//            .option("url", url)
-//            .option("user", user)
-//            .option("password", password)
-//            .option("dbtable", "tweets")
-//            .save()
-//        }
-//      }).start()
-
+    val query = tweetDataset.writeStream
+        .format("jdbc")
+        .trigger(Trigger.ProcessingTime("10 seconds"))
+        .foreachBatch((batchDF: Dataset[UserTweet], batchId: Long) => {
+        if (!batchDF.isEmpty) {
+          batchDF.coalesce(1)
+            .write
+            .mode(SaveMode.Append)
+            .format("jdbc")
+            .option("driver", "com.mysql.cj.jdbc.Driver")
+            .option("url", url)
+            .option("user", user)
+            .option("password", password)
+            .option("dbtable", "tweets")
+            .save()
+        }
+      }).start()
 
     stream.awaitTermination()
-    //query.awaitTermination()
+    query.awaitTermination()
   }
 }

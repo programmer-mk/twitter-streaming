@@ -44,7 +44,7 @@ object Util {
     words.mkString(" ")
   }
 
-  def cleanDocument(documentText: String) : String = {
+  def cleanDocument= (documentText: String) => {
     //  Converting all words to lowercase
     //  Removing URLs from document
     //  Removing Punctuations from document text
