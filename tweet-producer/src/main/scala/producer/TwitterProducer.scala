@@ -36,7 +36,7 @@ object TwitterProducer {
       while(true) {
         val value = s"record-${i}"
         val key = s"key-${i}"
-        val dummyTweet = new UserTweet(key, value, Instant.now())
+        val dummyTweet = new UserTweet(key, value, Instant.now().toString)
         val data = new ProducerRecord[String, UserTweet](TOPIC, key, dummyTweet)
         i +=1
         Thread.sleep(1000)
@@ -50,15 +50,19 @@ object TwitterProducer {
           val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
           val completedResults = Await.result(searchTweets, maxWaitTime)
           completedResults.data.statuses foreach { tweet =>
-            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at)
-            println(s"tweet value is: $userTweet.text")
+            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at.toString)
+            println(s"tweet value is: $userTweet")
             val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
             producer.send(data)
           }
           Thread.sleep(3000)
         } catch {
-          case e: java.util.concurrent.TimeoutException => println(s"Timeout occured. Sleeping for 1 second.Error: $e")
-          case e: Exception => println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
+          case e: java.util.concurrent.TimeoutException =>
+            Thread.sleep(3000)
+            println(s"Timeout occured. Sleeping for 1 second.Error: $e")
+          case e: Exception =>
+            Thread.sleep(15000)
+            println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
         }
       }
     }
