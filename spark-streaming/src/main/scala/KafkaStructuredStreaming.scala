@@ -69,10 +69,10 @@ object KafkaStructuredStreaming {
       .option("checkpointLocation", "s3a://test-spark-miki-bucket/streaming/checkpoint")
       .trigger(Trigger.ProcessingTime("30 seconds"))
       .start()
-
-    val url="jdbc:mysql://db:3306/test_db"
-    val user ="root"
-    val password = "root"
+                        // mysql is container name
+    val url="jdbc:mysql://mysql:3306/myDb"
+    val user ="myDbUser"
+    val password = "myPassword123"
 
     val query = tweetDataset.writeStream
         .format("jdbc")
