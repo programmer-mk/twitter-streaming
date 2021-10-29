@@ -1,12 +1,12 @@
 package producer
 
+import java.time.Instant
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
 import com.danielasfregola.twitter4s.entities.enums.Language
-import com.danielasfregola.twitter4s.entities.enums.Language.Language
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -19,7 +19,7 @@ object TwitterProducer {
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
-    val TOPIC = "tweets-test2"
+    val TOPIC = "tweet-upload-teest"
 
     val twitterClient = TwitterRestClient()
 
@@ -36,28 +36,34 @@ object TwitterProducer {
       while(true) {
         val value = s"record-${i}"
         val key = s"key-${i}"
-        val data = new ProducerRecord[String, String](TOPIC, key, value)
+        val dummyTweet = new UserTweet(key, value, Instant.now().toString)
+        val data = new ProducerRecord[String, UserTweet](TOPIC, key, dummyTweet)
         i +=1
         Thread.sleep(1000)
-        //producer.send(data)
+        producer.send(data)
         println(value)
       }
     } else {
       while(true) {
-        val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
-        val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
-        val completedResults = Await.result(searchTweets, maxWaitTime)
-        completedResults.data.statuses foreach { tweet =>
-          println(s"TweetId is: ${tweet.id}")
-
-          //producer.send(data)
-          println(s"TweetId text value: ${tweet.text}")
-          val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at)
-          println(s"tweet value is: $userTweet.text")
-          val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
-          producer.send(data)
+        try {
+          val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
+          val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
+          val completedResults = Await.result(searchTweets, maxWaitTime)
+          completedResults.data.statuses foreach { tweet =>
+            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at.toString)
+            println(s"tweet value is: $userTweet")
+            val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
+            producer.send(data)
+          }
+          Thread.sleep(3000)
+        } catch {
+          case e: java.util.concurrent.TimeoutException =>
+            Thread.sleep(3000)
+            println(s"Timeout occured. Sleeping for 1 second.Error: $e")
+          case e: Exception =>
+            Thread.sleep(15000)
+            println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
         }
-        Thread.sleep(20000)
       }
     }
   }

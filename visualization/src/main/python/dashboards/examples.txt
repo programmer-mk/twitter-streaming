@@ -1,0 +1,64 @@
+
+Commands:
+
+    1) docker-compose up --> run mysql container from mysql base image
+    2) docker exec -it dashboards_db_1 bash --> accessing mysql db container
+    3) mysql -uroot -proot --> execute on mysql container
+
+    4)  USE myDb;
+        CREATE TABLE IF NOT EXISTS tweets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            t_key VARCHAR(255) NOT NULL,
+            text VARCHAR(255) NOT NULL,
+            processed_text VARCHAR(255) NOT NULL,
+            polarity DOUBLE,
+            created VARCHAR(255)
+        )
+
+    5) SELECT COUNT(*) FROM myDb.tweets;
+       SELECT * FROM myDb.tweets;
+       SET SQL_SAFE_UPDATES = 0;
+       DROP TABLE myDb.tweets;
+       DELETE FROM myDb.tweets;
+       INSERT INTO myDb.tweets VALUES (0,'key-466','record-466','test','test')
+       ALTER TABLE myDb.tweets DROP COLUMN id;
+       ALTER TABLE myDb.tweets RENAME COLUMN t_key TO ;
+       ALTER TABLE myDb.tweets RENAME COLUMN t_key TO key;
+
+
+    6) For grafana:
+           - SELECT STR_TO_DATE(created,'%Y-%m-%dT%H:%i:%sZ') as converted_date FROM myDb.tweets LIMIT 1;
+
+
+      * Grafana initial polarity query without aggregations:
+
+        SELECT
+          STR_TO_DATE(created,'%Y-%m-%dT%H:%i:%sZ') AS "time",
+          polarity
+        FROM tweets
+        WHERE
+          $__timeFilter(created)
+        ORDER BY created
+
+
+      * Grafana tweet count per time:
+
+        SELECT
+          $__timeGroupAlias(created,$__interval),
+          count(id) AS "tweet_count"
+        FROM tweets
+        WHERE
+          $__timeFilter(created)
+        GROUP BY 1
+        ORDER BY $__timeGroup(created,$__interval)
+
+
+       * Count number of tweets during specific period(single stat option in grafana, for dashbboard):
+
+        SELECT
+          STR_TO_DATE(created,'%Y-%m-%dT%H:%i:%sZ') AS "time",
+          id
+        FROM tweets
+        WHERE
+          created BETWEEN FROM_UNIXTIME(1635283374) AND FROM_UNIXTIME(1635369774)
+        ORDER BY created

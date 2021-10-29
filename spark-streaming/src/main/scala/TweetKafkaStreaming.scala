@@ -2,21 +2,18 @@ import java.time.Instant
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.vader.sentiment.analyzer.SentimentAnalyzer
-import org.apache.commons.io.IOUtils
-import org.apache.http.HttpHeaders
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.entity.{ContentType, StringEntity}
-import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
+
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.kafka010._
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import streaming.Util
 
+case class Tweet(id: Long, t_key: String, text: String, processed_text: String, created: String)
 
 object TweetKafkaStreaming {
   // Kafka's broker address
@@ -24,7 +21,7 @@ object TweetKafkaStreaming {
   // Each stream uses a separate group.id
   val groupId: String = "kafka_spark_streaming"
   // The topic to be consumed, accepts an array, and can pass in multiple topics
-  val topics: Array[String] = Array("tweets-test2")
+  val topics: Array[String] = Array("tweet-upload-5")
   // Used to record logs
   val log: Logger = Logger.getLogger(getClass.getName)
 
@@ -79,12 +76,12 @@ object TweetKafkaStreaming {
         }
       }
 
-      // After a period of time, after the calculation is completed, the offset is submitted asynchronously
-      inputDStream.asInstanceOf[CanCommitOffsets].commitAsync(offsetRanges)
-    }
+        // After a period of time, after the calculation is completed, the offset is submitted asynchronously
+        inputDStream.asInstanceOf[CanCommitOffsets].commitAsync(offsetRanges)
+      }
 
-    ssm.start()
-    ssm.awaitTermination()
+      ssm.start()
+      ssm.awaitTermination()
   }
 }
 
