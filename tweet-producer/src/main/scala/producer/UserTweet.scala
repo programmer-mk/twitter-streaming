@@ -1,19 +1,17 @@
 package producer
 
-import java.time.Instant
-
 class UserTweet {
-  private var id: String = ""
+  private var t_key: String = ""
   private var text: String = ""
-  private var creationTime: Instant = Instant.now
-  def this(id: String, text: String, creationTime: Instant) {
+  private var created: String = ""
+  def this(t_key: String, text: String, created: String) {
     this()
-    this.id =id
+    this.t_key = t_key
     this.text = text
-    this.creationTime = creationTime
+    this.created = created
   }
-  def getId: String = this.id
+  def getKey: String = this.t_key
   def getText: String = this.text
-  def getCreationTime: Instant = this.creationTime
-  override def toString: String = "User(" + id + ", " + text + ", " + creationTime + ")"
+  def getCreated: String = this.created
+  override def toString: String = "User(" + t_key + ", " + text + ", " + created + ")"
 }

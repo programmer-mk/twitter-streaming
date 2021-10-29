@@ -2,22 +2,24 @@ version: '2'
 
 services:
   zookeeper:
-    image: zookeeper
+    image: docker.io/bitnami/zookeeper:3.7
     ports:
       - "2181:2181"
-
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
   kafka:
-    image: linuxkitpoc/kafka:latest
+    image: docker.io/bitnami/kafka:3
     ports:
       - "9092:9092"
+    volumes:
+      - "kafka_data:/bitnami"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
     depends_on:
       - zookeeper
-    environment:
-      KAFKA_ADVERTISED_HOST_NAME: kafka
-      KAFKA_ADVERTISED_PORT: "9092"
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
 
   tweet-producer:
     image: mkovacevic/tweet-producer-app:latest
@@ -25,13 +27,19 @@ services:
       - "8080:8080"
     tty: true
     depends_on:
+      - zookeeper
       - kafka
 
-#  tweet-consumer:
-#    image: mkovacevic/tweet-consumer-app:latest
-#    ports:
-#      - "8081:8081"
-#    tty: true
-#    depends_on:
-#      - kafka
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+
+networks:
+  default:
+    #external: true
+    name: twitter-streaming_default
+
+
 
