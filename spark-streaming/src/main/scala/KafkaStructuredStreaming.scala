@@ -10,7 +10,7 @@ object KafkaStructuredStreaming {
 
   val log: Logger = Logger.getLogger(getClass.getName)
 
-  case class UserTweet(id: Long, t_key: String, text: String, processed_text: String, polarity: Double, created: String)
+  case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String)
 
   def computePolarity = (input: String) => {
     val sentimentAnalyzer = new SentimentAnalyzer(input)
@@ -58,13 +58,13 @@ object KafkaStructuredStreaming {
       .select(col("t_key"), col("data.text"), col("data.created")).withColumn("id", lit(0))
       .withColumn("processed_text", cleanTextUdf(col("text")))
       .withColumn("polarity", computePolarityUdf(col("processed_text")))
+      .drop("text")
       .as[UserTweet]
 
     val stream = tweetDataset.writeStream
       .outputMode("append")
       .format("csv")
       .option("header", "true")
-      .option("sep", ",")
       .option("path", "s3a://test-spark-miki-bucket/output")
       .option("checkpointLocation", "s3a://test-spark-miki-bucket/streaming/checkpoint")
       .trigger(Trigger.ProcessingTime("30 seconds"))
