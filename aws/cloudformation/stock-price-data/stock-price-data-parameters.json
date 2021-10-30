@@ -1,0 +1,22 @@
+[
+  {
+    "ParameterKey": "Name",
+    "ParameterValue": "stock-price"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "sandbox"
+  },
+  {
+    "ParameterKey": "StockApiHostName",
+    "ParameterValue": "https://eodhistoricaldata.com"
+  },
+  {
+    "ParameterKey": "StockApiResource",
+    "ParameterValue": "/api/eod/"
+  },
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "test-spark-miki-bucket"
+  }
+]
