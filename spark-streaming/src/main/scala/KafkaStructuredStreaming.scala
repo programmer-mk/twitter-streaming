@@ -10,7 +10,7 @@ object KafkaStructuredStreaming {
 
   val log: Logger = Logger.getLogger(getClass.getName)
 
-  case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String)
+  case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String, search_term: String)
 
   def computePolarity = (input: String) => {
     val sentimentAnalyzer = new SentimentAnalyzer(input)
@@ -49,13 +49,15 @@ object KafkaStructuredStreaming {
       .add("key",StringType)
       .add("text",StringType)
       .add("created",StringType)
+      .add("searchTerm",StringType)
 
     val computePolarityUdf = spark.udf.register("computePolarity", computePolarity)
     val cleanTextUdf = spark.udf.register("cleanTextUdf", Util.cleanDocument)
 
     val tweetDataset = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
       .select(col("key").as("t_key"), from_json(col("value"), schema).as("data"))
-      .select(col("t_key"), col("data.text"), col("data.created")).withColumn("id", lit(0))
+      .select(col("t_key"), col("data.text"), col("data.created"), col("data.searchTerm").as("search_term"))
+      .withColumn("id", lit(0))
       .withColumn("processed_text", cleanTextUdf(col("text")))
       .withColumn("polarity", computePolarityUdf(col("processed_text")))
       .drop("text")
