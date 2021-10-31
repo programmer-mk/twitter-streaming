@@ -1,7 +1,7 @@
 package producer
 
 import java.time.Instant
-import java.util.Properties
+import java.util.{Properties, Random}
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -21,6 +21,8 @@ object TwitterProducer {
     val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
     val TOPIC = "tweet-upload-teest"
 
+    val searchTerms = Seq("microsoft", "amazon", "bitcoin", "apple", "tesla")
+
     val twitterClient = TwitterRestClient()
 
     val props = new Properties()
@@ -36,7 +38,7 @@ object TwitterProducer {
       while(true) {
         val value = s"record-${i}"
         val key = s"key-${i}"
-        val dummyTweet = new UserTweet(key, value, Instant.now().toString)
+        val dummyTweet = new UserTweet(key, value, Instant.now().toString, "test")
         val data = new ProducerRecord[String, UserTweet](TOPIC, key, dummyTweet)
         i +=1
         Thread.sleep(1000)
@@ -46,11 +48,14 @@ object TwitterProducer {
     } else {
       while(true) {
         try {
-          val searchTweets = twitterClient.searchTweet("microsoft", language = Some(Language.English))
+          val random = new Random
+          val searchTermIndex  = random.nextInt(searchTerms.size)
+          println(s"Search term index is: $searchTermIndex")
+          val searchTweets = twitterClient.searchTweet(searchTerms(searchTermIndex), language = Some(Language.English))
           val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
           val completedResults = Await.result(searchTweets, maxWaitTime)
           completedResults.data.statuses foreach { tweet =>
-            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at.toString)
+            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at.toString, searchTerms(searchTermIndex))
             println(s"tweet value is: $userTweet")
             val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
             producer.send(data)
