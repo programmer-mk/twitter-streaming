@@ -1,0 +1,7 @@
+
+
+1) For building docker image:  docker build --rm=true -t bml-predictions-image .
+
+2) For running container:  docker run --name ml-predictions-container -p 5000:5000  -t -d bml-predictions-image // look for network later
+
+3) curl -H "Content-Type:application/json" -X POST  http://localhost:5000/prediction/8923
