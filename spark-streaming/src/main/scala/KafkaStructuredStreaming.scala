@@ -28,7 +28,7 @@ object KafkaStructuredStreaming {
       .getOrCreate()
 
     spark.sparkContext.getConf.set("spark.executor.memory", "1g")
-    spark.sparkContext.getConf.set("spark.driver.memory", "1g")
+    spark.sparkContext.getConf.set("spark.driver.memory", "2g")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
@@ -39,7 +39,7 @@ object KafkaStructuredStreaming {
     val df = spark
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "kafka:9092")
+      .option("kafka.bootstrap.servers", "kafka1:9092,kafka2:9093")
       .option("startingOffsets", "latest") // just messages after spark is up
       .option("subscribe", "tweet-upload-teest")
       .option("group.id", "kafka-spark-integration")

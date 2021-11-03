@@ -18,7 +18,8 @@ object TwitterProducer {
     // get an ActorSystem in scope for the futures
     implicit val system = ActorSystem("TwitterFutureSystem")
     implicit val ec: ExecutionContext = system.dispatcher
-    val BROKER_LIST = "kafka:9092" //change it to localhost:9092 if not connecting through docker
+    //val BROKER_LIST = "kafka1:9092,kafka2:9093,kafka3:9094" //change it to localhost:9092 if not connecting through docker
+    val BROKER_LIST = "kafka1:9092,kafka2:9093"
     val TOPIC = "tweet-upload-teest"
 
     val searchTerms = Seq("microsoft", "amazon", "bitcoin", "apple", "tesla")
