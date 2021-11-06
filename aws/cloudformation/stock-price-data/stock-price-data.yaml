@@ -120,7 +120,7 @@ Resources:
     Properties:
       Description: "Trigger lambda based on a crone expression"
       # Run at 10:00 am (UTC) every day
-      ScheduleExpression: "cron(0 10 * * ? *)"
+      ScheduleExpression: "cron(0 16 * * ? *)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt LambdaFunction.Arn

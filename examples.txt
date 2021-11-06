@@ -1,0 +1,6 @@
+/opt/bitnami/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic tweet-upload-teest --partitions 2 --replication-factor 2
+
+/opt/bitnami/kafka/bin/kafka-topics.sh --describe --bootstrap-server localhost:9092 --topic tweet-upload-teest
+
+
+docker run --name tweet-producer -p 8080:8080 --network=twitter-streaming_default -t -d mkovacevic/tweet-producer-app:latest

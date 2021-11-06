@@ -35,15 +35,16 @@ object TweetPolarityAggregator {
 
     val datePolarityGrouped = tweetData.map(row => {
       val createdDate = row.getTimestamp(1)
-      val polarity = row.getDouble(4)
-      (createdDate, polarity)
+      val polarity = row.getDouble(5)
+      val searchTerm = row.getString(2)
+      (createdDate, searchTerm ,polarity)
      }
-    ).toDF("date","polarity")
+    ).toDF("date","search_term", "polarity")
 
     val transformedDf = datePolarityGrouped
       .withColumn("date", to_date($"date", "MM-dd-yyyy"))
 
-    val aggregatedResults = transformedDf.groupBy("date").sum("polarity").toDF("date","total_polarity")
+    val aggregatedResults = transformedDf.groupBy("date", "search_term").sum("polarity").toDF("date", "search_term", "total_polarity")
 
     aggregatedResults
       .repartition(1) // write everything in one file
