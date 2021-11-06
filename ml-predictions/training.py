@@ -4,15 +4,25 @@ import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
-from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
 
 from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from sklearn.pipeline import Pipeline
 
+microsoft_data = pd.read_csv('/home/jovyan/ml-predictions/data/MSFT.US-historical-stocks.csv')
+amazon_data = pd.read_csv('/home/jovyan/ml-predictions/data/AMZN.US-historical-stocks.csv')
+apple_data = pd.read_csv('/home/jovyan/ml-predictions/data/AAPL.US-historical-stocks.csv')
+tesla_data = pd.read_csv('/home/jovyan/ml-predictions/data/TSLA.US-historical-stocks.csv')
+bitcoin_data = pd.read_csv('/home/jovyan/ml-predictions/data/BTC-USD.CC-historical-stocks.csv')
 
-def load_data():
-    return pd.read_csv('/home/jovyan/ml-predictions/data/MSFT.US-historical-stocks.csv')
+
+# microsoft_data = pd.read_csv('./data/MSFT.US-historical-stocks.csv')
+# amazon_data = pd.read_csv('./data/AMZN.US-historical-stocks.csv')
+# apple_data = pd.read_csv('./data/AAPL.US-historical-stocks.csv')
+# tesla_data = pd.read_csv('./data/TSLA.US-historical-stocks.csv')
+# bitcoin_data = pd.read_csv('./data/BTC-USD.CC-historical-stocks.csv')
+
+stocks = [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "BTC"]]
 
 
 def SMA(data, period=30, column='Close'):
@@ -52,7 +62,8 @@ def RSI(data, period = 14, column = 'Close'):
 def save_models(estimators):
     for estimator in estimators:
         for estimator_key in estimator:
-            joblib.dump(estimator[estimator_key], f'{estimator_key}-estimator.pkl', compress=1)
+            if estimator_key != "stock_name":
+                joblib.dump(estimator[estimator_key], f'{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
 
 
 def preprocess_data(data):
@@ -76,7 +87,7 @@ def preprocess_data(data):
     return features, labels
 
 
-def nested_cv_logistic_regression(X, Y):
+def nested_cv_logistic_regression(X, Y, stock_name):
     param_grid = {"logisticregression__C": [0.0001, 0.0005, 0.001, 0.01, 0.3, 0.5, 1, 5, 10],
               "logisticregression__penalty":["l1","l2"],
               "logisticregression__solver": ["liblinear", "saga"]
@@ -93,15 +104,15 @@ def nested_cv_logistic_regression(X, Y):
     nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
     nested_score = nested_scores.mean()
 
-    print(f'Results after cross-validation logistic regression {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation logistic regression {nested_score} \n')
 
     clf.fit(X, Y)
-    print(f'best estimator: {clf.best_estimator_}')
-    print(f'best params: {clf.best_params_}')
+    print(f'#{stock_name} best estimator: {clf.best_estimator_}')
+    print(f'#{stock_name} best params: {clf.best_params_}')
     return clf
 
 
-def nested_cv_svm(X, Y):
+def nested_cv_svm(X, Y, stock_name):
     param_grid = {'svm__C': [0.0001, 0.0005, 0.0001, 0.001, 0.1, 1, 10, 100, 1000],
                   'svm__gamma': [100, 10, 1, 0.1, 0.01, 0.001],
                   'svm__kernel': ['rbf']}
@@ -117,16 +128,16 @@ def nested_cv_svm(X, Y):
     nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
     nested_score = nested_scores.mean()
 
-    print(f'Results after cross-validation support vector machine {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation support vector machine {nested_score} \n')
 
     clf.fit(X, Y)
-    print(f'best estimator: {clf.best_estimator_}')
-    print(f'best params: {clf.best_params_}')
+    print(f'#{stock_name} best estimator: {clf.best_estimator_}')
+    print(f'#{stock_name} best params: {clf.best_params_}')
 
     return clf
 
 
-def nested_cv_decission_tree(X, Y):
+def nested_cv_decission_tree(X, Y, stock_name):
     param_grid = {'tree__max_features': ['auto', 'sqrt', 'log2'],
                   'tree__ccp_alpha': [0.1, .01, .001],
                   'tree__max_depth' : [5, 6, 7, 8, 9, 12, 15, 18],
@@ -143,23 +154,25 @@ def nested_cv_decission_tree(X, Y):
     nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
     nested_score = nested_scores.mean()
 
-    print(f'Results after cross-validation decission tree {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation decission tree {nested_score} \n')
 
     clf.fit(X, Y)
-    print(f'best estimator: {clf.best_estimator_}')
-    print(f'best params: {clf.best_params_}')
+    print(f'#{stock_name} best estimator: {clf.best_estimator_}')
+    print(f'#{stock_name} best params: {clf.best_params_}')
 
     return clf
 
 
 if __name__ == '__main__':
-    data = load_data()
-    X, Y = preprocess_data(data)
-    lg_estimator = nested_cv_logistic_regression(X, Y)
-    svm_estimator = nested_cv_svm(X,Y)
-    dt_estimator = nested_cv_decission_tree(X, Y)
-    save_models([
-        {"lg":lg_estimator},
-        {"svm":svm_estimator},
-        {"dt":dt_estimator}
-    ])
+    for stock in stocks:
+        data = stock[0]
+        stock_name = stock[1]
+        X, Y = preprocess_data(data)
+        lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
+        svm_estimator = nested_cv_svm(X,Y, stock_name)
+        dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
+        save_models([
+            {"lg":lg_estimator, "stock_name": stock_name},
+            {"svm":svm_estimator, "stock_name": stock_name},
+            {"dt":dt_estimator, "stock_name": stock_name}
+        ])
