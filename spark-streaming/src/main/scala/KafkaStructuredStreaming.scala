@@ -24,13 +24,13 @@ object KafkaStructuredStreaming {
     val spark = SparkSession
       .builder
       .appName(getClass.getName)
-      .master("spark://spark-master:7077")
+      .master(System.getenv("SPARK_MASTER"))
       .getOrCreate()
 
-    spark.sparkContext.getConf.set("spark.executor.memory", "1g")
-    spark.sparkContext.getConf.set("spark.driver.memory", "2g")
-    spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
-    spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    //spark.sparkContext.getConf.set("spark.executor.memory", "1g")
+    //spark.sparkContext.getConf.set("spark.driver.memory", "2g")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 

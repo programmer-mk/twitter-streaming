@@ -32,6 +32,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: tweet-producer-log-group
+  SparkMasterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-master-log-group
+  SparkWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-worker-log-group
   CollectorsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -44,6 +52,19 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  ProcessorsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: processors-execution-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
   ZookeperServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -73,6 +94,26 @@ Resources:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
+          CidrIp: 0.0.0.0/0
+  SparkMasterServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-master-service-sg
+      GroupDescription: Security group for spark master tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 7077
+          ToPort: 7077
+          CidrIp: 0.0.0.0/0
+  SparkWorkerServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-worker-service-sg
+      GroupDescription: Security group for spark worker tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8081
+          ToPort: 8081
           CidrIp: 0.0.0.0/0
   ZookeperTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -274,3 +315,120 @@ Resources:
             - !Ref SubnetID
           SecurityGroups:
             - !GetAtt TweetProducerServiceSecurityGroup.GroupId
+  SparkMasterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkMasterLogGroup
+    Properties:
+      Family: spark-master-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-master-container
+          Image: bde2020/spark-master:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 7077
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkMasterLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: INIT_DAEMON_STEP
+              Value: setup_spark
+      RequiresCompatibilities:
+        - FARGATE
+  SparkMasterDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for spark master
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: spark-master
+      NamespaceId: !Ref PrivateNamespace
+  SparkMasterService:
+    DependsOn:
+      - PrivateNamespace
+      - SparkMasterDiscoveryService
+      - Cluster
+      - SparkMasterTaskDefinition
+      - SparkMasterServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-master
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkMasterTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt SparkMasterDiscoveryService.Arn
+          Port: 7077
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkMasterServiceSecurityGroup.GroupId
+  SparkWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkWorkerLogGroup
+    Properties:
+      Family: spark-worker-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-worker-container
+          Image: bde2020/spark-worker:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkWorkerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-master.${Domain}:7077"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+      RequiresCompatibilities:
+        - FARGATE
+  SparkWorkerService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkWorkerTaskDefinition
+      - SparkWorkerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkWorkerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+
