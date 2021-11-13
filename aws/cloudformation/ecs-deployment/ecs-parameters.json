@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "Name",
+    "ParameterValue": "tweet-analysis"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "Vpc",
+    "ParameterValue": "vpc-d36c1ebb"
+  },
+  {
+    "ParameterKey": "SubnetID",
+    "ParameterValue": "subnet-a84790e4"
+  },
+  {
+    "ParameterKey": "Domain",
+    "ParameterValue": "tweetanalysis.prod.com"
+  },
+  {
+    "ParameterKey": "KafkaReplicationFactor",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "TweetProducerEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/tweet-producer:latest"
+  }
+]

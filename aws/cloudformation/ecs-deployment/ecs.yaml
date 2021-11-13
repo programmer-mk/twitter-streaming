@@ -1,0 +1,276 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: deploy all containers to ecs
+Parameters:
+  SubnetID:
+    Type: String
+  Name:
+    Type: String
+  Environment:
+    Type: String
+  Domain:
+    Type: String
+  Vpc:
+    Type: String
+  KafkaReplicationFactor:
+    Type: String
+  TweetProducerEcrImage:
+    Type: String
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${Name}-${Environment}-cluster"
+  ZookeperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: zookeper-log-group
+  KafkaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: kafka-log-group
+  TweetProducerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: tweet-producer-log-group
+  CollectorsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: collectors-execution-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  ZookeperServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: zookeper-service-sg
+      GroupDescription: Security group for zookeper tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2181
+          ToPort: 2181
+          CidrIp: 0.0.0.0/0
+  KafkaServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: kafka-service-sg
+      GroupDescription: Security group for kafka tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          CidrIp: 0.0.0.0/0
+  TweetProducerServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: tweet-producer-service-sg
+      GroupDescription: Security group for tweet producer tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+  ZookeperTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - ZookeperLogGroup
+    Properties:
+      Family: zookeper-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: zookeper-container
+          Image: docker.io/bitnami/zookeeper:3.7
+          PortMappings:
+            - ContainerPort: 2181
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref ZookeperLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: ALLOW_ANONYMOUS_LOGIN
+              Value: yes
+      RequiresCompatibilities:
+        - FARGATE
+
+  KafkaTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - KafkaLogGroup
+    Properties:
+      Family: kafka-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: kafka-container
+          Image: docker.io/bitnami/kafka:3
+          PortMappings:
+            - ContainerPort: 9092
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref KafkaLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: KAFKA_CFG_ZOOKEEPER_CONNECT
+              Value: !Sub "zookeper.${Domain}:2181"
+            - Name: ALLOW_PLAINTEXT_LISTENER
+              Value: yes
+            - Name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+              Value: true
+            - Name: KAFKA_CFG_NUM_PARTITIONS
+              Value: !Ref KafkaReplicationFactor
+            - Name: KAFKA_CFG_DEFAULT_REPLICATION_FACTOR
+              Value: !Ref KafkaReplicationFactor
+            - Name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+              Value: !Ref KafkaReplicationFactor
+      RequiresCompatibilities:
+        - FARGATE
+
+  TweetProducerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - TweetProducerLogGroup
+    Properties:
+      Family: tweet-producer-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: tweet-producer-container
+          Image: !Ref TweetProducerEcrImage
+          PortMappings:
+            - ContainerPort: 8080
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref TweetProducerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+      RequiresCompatibilities:
+        - FARGATE
+
+  PrivateNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Ref Domain
+      Vpc: !Ref Vpc
+  ZookeperDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for zookeper
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: zookeper
+      NamespaceId: !Ref PrivateNamespace
+  KafkaDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for kafka
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: kafka
+      NamespaceId: !Ref PrivateNamespace
+  ZookeperService:
+    DependsOn:
+      - PrivateNamespace
+      - ZookeperDiscoveryService
+      - Cluster
+      - ZookeperTaskDefinition
+      - ZookeperServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: zookeper
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref ZookeperTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ZookeperDiscoveryService.Arn
+          Port: 2181
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt ZookeperServiceSecurityGroup.GroupId
+  KafkaService:
+    DependsOn:
+      - ZookeperService
+      - PrivateNamespace
+      - KafkaDiscoveryService
+      - Cluster
+      - KafkaTaskDefinition
+      - KafkaServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: kafka
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref KafkaTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt KafkaDiscoveryService.Arn
+          Port: 9092
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt KafkaServiceSecurityGroup.GroupId
+  TweetProducerService:
+    DependsOn:
+      - KafkaService
+      - Cluster
+      - TweetProducerTaskDefinition
+      - TweetProducerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: tweet-producer
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TweetProducerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt TweetProducerServiceSecurityGroup.GroupId
