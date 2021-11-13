@@ -40,6 +40,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: spark-worker-log-group
+  MySQLLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: mysql-log-group
+  GrafanaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: grafana-log-group
   CollectorsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -114,6 +122,20 @@ Resources:
         - IpProtocol: tcp
           FromPort: 8081
           ToPort: 8081
+          CidrIp: 0.0.0.0/0
+  VisualisationsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: visualisations-service-sg
+      GroupDescription: Security group for visualisations service - mysql and grafana
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
           CidrIp: 0.0.0.0/0
   ZookeperTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -431,4 +453,86 @@ Resources:
             - !Ref SubnetID
           SecurityGroups:
             - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+  VisualisationsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - VisualisationsLogGroup
+    Properties:
+      Family: visualisations-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: mysql-db-container
+          Image:  mysql:5.7
+          PortMappings:
+            - ContainerPort: 3306
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref MySQLLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: myRootPassword123
+            - Name: MYSQL_DATABASE
+              Value: myDb
+            - Name: MYSQL_USER
+              Value: myDbUser
+            - Name: MYSQL_PASSWORD
+              Value: myPassword123
+        - Name: grafana-container
+          Image: grafana/grafana
+          PortMappings:
+            - ContainerPort: 3000
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref GrafanaLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: GF_INSTALL_PLUGINS
+              Value: percona-percona-app
+      RequiresCompatibilities:
+        - FARGATE
+  VisualisationsDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for mysql and grafana
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: visualisations
+      NamespaceId: !Ref PrivateNamespace
+  VisualisationsService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - VisualisationsTaskDefinition
+      - VisualisationsSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: visualisations
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref VisualisationsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt VisualisationsServiceSecurityGroup.GroupId
 
