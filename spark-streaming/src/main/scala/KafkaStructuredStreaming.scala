@@ -27,11 +27,20 @@ object KafkaStructuredStreaming {
       .master(System.getenv("SPARK_MASTER"))
       .getOrCreate()
 
+
+    //    spark.sparkContext.hadoopConfiguration.set("fs.s3a.credentialstype", "AssumeRole")
+    //    spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.arn", "arn:aws:iam::809526675404:role/processors-execution-role")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.auth.AssumedRoleCredentialProvider")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.arn", "arn:aws:iam::809526675404:role/processors-execution-role")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint", "sts.eu-west-2.amazonaws.com")
+
+
     //spark.sparkContext.getConf.set("spark.executor.memory", "1g")
     //spark.sparkContext.getConf.set("spark.driver.memory", "2g")
-    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
-    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
-    spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "xx")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "xx")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint.region", "eu-west-2")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
     import spark.implicits._
