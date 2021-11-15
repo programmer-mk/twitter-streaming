@@ -48,6 +48,8 @@ services:
     ports:
       - "8080:8080"
     tty: true
+    environment:
+      - KAFKA_SERVICE=kafka1:9092,kafka2:9093
     depends_on:
       - zookeeper
       - kafka1

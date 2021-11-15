@@ -40,7 +40,8 @@ object KafkaStructuredStreaming {
     //spark.sparkContext.getConf.set("spark.driver.memory", "2g")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "xx")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "xx")
-    spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint.region", "eu-west-2")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint.region", "eu-west-2")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
     import spark.implicits._

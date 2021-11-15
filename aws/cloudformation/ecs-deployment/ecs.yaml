@@ -521,6 +521,7 @@ Resources:
               awslogs-group: !Ref MysqlLogGroup
               awslogs-stream-prefix: ecs
           Environment:
+            # put this in the secret
             - Name: MYSQL_ROOT_PASSWORD
               Value: myRootPassword123
             - Name: MYSQL_DATABASE
