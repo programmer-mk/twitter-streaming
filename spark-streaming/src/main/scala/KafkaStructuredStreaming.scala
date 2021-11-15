@@ -39,7 +39,7 @@ object KafkaStructuredStreaming {
     val df = spark
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "kafka1:9092,kafka2:9093")
+      .option("kafka.bootstrap.servers", System.getenv("KAFKA_SERVICE"))
       .option("startingOffsets", "latest") // just messages after spark is up
       .option("subscribe", "tweet-upload-teest")
       .option("group.id", "kafka-spark-integration")
@@ -72,7 +72,7 @@ object KafkaStructuredStreaming {
       .trigger(Trigger.ProcessingTime("30 seconds"))
       .start()
                         // mysql is container name
-    val url="jdbc:mysql://mysql:3306/myDb"
+    val url=s"jdbc:mysql://${System.getenv("MYSQL_SERVICE")}/myDb"
     val user ="myDbUser"
     val password = "myPassword123"
 

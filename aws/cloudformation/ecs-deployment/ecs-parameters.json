@@ -26,5 +26,9 @@
   {
     "ParameterKey": "TweetProducerEcrImage",
     "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/tweet-producer:latest"
+  },
+  {
+    "ParameterKey": "SparkStreamingAppEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-streaming-app:latest"
   }
 ]
