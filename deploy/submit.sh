@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export SPARK_MASTER_URL=spark://${SPARK_MASTER_NAME}:${SPARK_MASTER_PORT}
+export SPARK_MASTER_URL=${SPARK_MASTER_NAME}:${SPARK_MASTER_PORT}
 export SPARK_HOME=/spark
 
 function is_uri() {
