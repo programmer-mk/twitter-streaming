@@ -42,10 +42,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: spark-worker-log-group
-  MySQLLogGroup:
+  MysqlLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: mysql-log-group
+      LogGroupName: myssql-log-group
   GrafanaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -129,19 +129,25 @@ Resources:
           FromPort: 8081
           ToPort: 8081
           CidrIp: 0.0.0.0/0
-  VisualisationsServiceSecurityGroup:
+  GrafanaServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: visualisations-service-sg
-      GroupDescription: Security group for visualisations service - mysql and grafana
+      GroupName: grafana-service-sg
+      GroupDescription: Security group for grafana service
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+  MysqlServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mysql-service-sg
+      GroupDescription: Security group for mysql service
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 3000
-          ToPort: 3000
           CidrIp: 0.0.0.0/0
   ZookeperTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -348,7 +354,6 @@ Resources:
     DependsOn:
       - ProcessorsExecutionRole
       - SparkMasterLogGroup
-      - VisualisationsService
     Properties:
       Family: spark-master-td
       Cpu: 256
@@ -370,7 +375,9 @@ Resources:
             - Name: INIT_DAEMON_STEP
               Value: setup_spark
             - Name: MYSQL_SERVICE
-              Value: !Sub "visualisations.${Domain}:3306"
+              Value: !Sub "mysql.${Domain}:3306"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
       RequiresCompatibilities:
         - FARGATE
   SparkMasterDiscoveryService:
@@ -418,7 +425,6 @@ Resources:
     DependsOn:
       - ProcessorsExecutionRole
       - SparkWorkerLogGroup
-      - VisualisationsService
     Properties:
       Family: spark-worker-td
       Cpu: 256
@@ -442,7 +448,7 @@ Resources:
             - Name: KAFKA_SERVICE
               Value: !Sub "kafka.${Domain}:9092"
             - Name: MYSQL_SERVICE
-              Value: !Sub "visualisations.${Domain}:3306"
+              Value: !Sub "mysql.${Domain}:3306"
       RequiresCompatibilities:
         - FARGATE
   SparkWorkerService:
@@ -465,38 +471,18 @@ Resources:
             - !Ref SubnetID
           SecurityGroups:
             - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
-  VisualisationsTaskDefinition:
+  GrafanaTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
       - CollectorsExecutionRole
-      - MySQLLogGroup
       - GrafanaLogGroup
     Properties:
-      Family: visualisations-td
+      Family: grafana-td
       Cpu: 256
       Memory: 512
       NetworkMode: awsvpc
       ExecutionRoleArn: !Ref CollectorsExecutionRole
       ContainerDefinitions:
-        - Name: mysql-db-container
-          Image:  mysql:5.7
-          PortMappings:
-            - ContainerPort: 3306
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-region: !Ref AWS::Region
-              awslogs-group: !Ref MySQLLogGroup
-              awslogs-stream-prefix: ecs
-          Environment:
-            - Name: MYSQL_ROOT_PASSWORD
-              Value: myRootPassword123
-            - Name: MYSQL_DATABASE
-              Value: myDb
-            - Name: MYSQL_USER
-              Value: myDbUser
-            - Name: MYSQL_PASSWORD
-              Value: myPassword123
         - Name: grafana-container
           Image: grafana/grafana
           PortMappings:
@@ -512,11 +498,44 @@ Resources:
               Value: percona-percona-app
       RequiresCompatibilities:
         - FARGATE
-  VisualisationsDiscoveryService:
+  MysqlTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - MysqlLogGroup
+    Properties:
+      Family: mysql-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: mysql-db-container
+          Image:  mysql:5.7
+          PortMappings:
+            - ContainerPort: 3306
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref MysqlLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: myRootPassword123
+            - Name: MYSQL_DATABASE
+              Value: myDb
+            - Name: MYSQL_USER
+              Value: myDbUser
+            - Name: MYSQL_PASSWORD
+              Value: myPassword123
+      RequiresCompatibilities:
+        - FARGATE
+  GrafanaDiscoveryService:
     DependsOn: PrivateNamespace
     Type: AWS::ServiceDiscovery::Service
     Properties:
-      Description: Discovery Service for mysql and grafana
+      Description: Discovery Service grafana
       DnsConfig:
         RoutingPolicy: MULTIVALUE
         DnsRecords:
@@ -526,19 +545,38 @@ Resources:
             Type: SRV
       HealthCheckCustomConfig:
         FailureThreshold: 1
-      Name: visualisations
+      Name: grafana
       NamespaceId: !Ref PrivateNamespace
-  VisualisationsService:
+  MysqlDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service mysql
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: mysql
+      NamespaceId: !Ref PrivateNamespace
+  MysqlService:
     DependsOn:
       - PrivateNamespace
       - Cluster
-      - VisualisationsTaskDefinition
-      - VisualisationsServiceSecurityGroup
+      - MysqlTaskDefinition
+      - MysqlServiceSecurityGroup
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: visualisations
+      ServiceName: mysql
       Cluster: !Ref Cluster
-      TaskDefinition: !Ref VisualisationsTaskDefinition
+      TaskDefinition: !Ref MysqlTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt MysqlDiscoveryService.Arn
+          Port: 3306
       DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -547,7 +585,30 @@ Resources:
           Subnets:
             - !Ref SubnetID
           SecurityGroups:
-            - !GetAtt VisualisationsServiceSecurityGroup.GroupId
+            - !GetAtt MysqlServiceSecurityGroup.GroupId
+  GrafanaService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - GrafanaTaskDefinition
+      - GrafanaServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: grafana
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref GrafanaTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt GrafanaDiscoveryService.Arn
+          Port: 3000
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt GrafanaServiceSecurityGroup.GroupId
 
   SparkStreamingAppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -570,10 +631,12 @@ Resources:
               awslogs-group: !Ref SparkStreamingLogGroup
               awslogs-stream-prefix: ecs
           Environment:
-            - Name: SPARK_MASTER_NAME
-              Value: !Sub "spark://spark-master.${Domain}"
-            - Name: SPARK_MASTER_PORT
-              Value: "7077"
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-master.${Domain}:7077"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+            - Name: MYSQL_SERVICE
+              Value: !Sub "mysql.${Domain}:3306"
       RequiresCompatibilities:
         - FARGATE
 
