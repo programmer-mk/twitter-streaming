@@ -54,6 +54,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: spark-streaming-log-group
+  SparkBatchMasterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-master-log-group
+  SparkBatchWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-worker-log-group
   CollectorsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -149,6 +157,11 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           CidrIp: 0.0.0.0/0
+  SparkStreamingServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-streaming-service-sg
+      GroupDescription: Security group for spark streaming service
   ZookeperTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -646,6 +659,7 @@ Resources:
       - PrivateNamespace
       - Cluster
       - SparkStreamingAppTaskDefinition
+      - SparkStreamingServiceSecurityGroup
     Type: AWS::ECS::Service
     Properties:
       ServiceName: spark-streaming-app
@@ -658,4 +672,121 @@ Resources:
           AssignPublicIp: ENABLED
           Subnets:
             - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkStreamingServiceSecurityGroup.GroupId
 
+  SparkBatchMasterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchMasterLogGroup
+    Properties:
+      Family: spark-batch-master-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-master-container
+          Image: bde2020/spark-master:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 7077
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchMasterLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: INIT_DAEMON_STEP
+              Value: setup_spark
+      RequiresCompatibilities:
+        - FARGATE
+  SparkBatchMasterDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for spark batch master
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: spark-batch-master
+      NamespaceId: !Ref PrivateNamespace
+  SparkBatchMasterService:
+    DependsOn:
+      - PrivateNamespace
+      - SparkBatchMasterDiscoveryService
+      - Cluster
+      - SparkBatchMasterTaskDefinition
+      - SparkMasterServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-master
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchMasterTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt SparkBatchMasterDiscoveryService.Arn
+          Port: 7077
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkMasterServiceSecurityGroup.GroupId
+
+  SparkBatchWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchWorkerLogGroup
+    Properties:
+      Family: spark-batch-worker-td
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-worker-container
+          Image: bde2020/spark-worker:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchWorkerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+      RequiresCompatibilities:
+        - FARGATE
+  SparkBatchWorkerService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkBatchWorkerTaskDefinition
+      - SparkWorkerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchWorkerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkWorkerServiceSecurityGroup.GroupId

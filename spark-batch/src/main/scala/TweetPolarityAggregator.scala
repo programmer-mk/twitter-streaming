@@ -13,7 +13,7 @@ object TweetPolarityAggregator {
     val spark = SparkSession
       .builder
       .appName(getClass.getName)
-      .master("spark://spark-master:7077")
+      .master(System.getenv("SPARK_MASTER"))
       .getOrCreate()
 
     // specify AWS credentials
