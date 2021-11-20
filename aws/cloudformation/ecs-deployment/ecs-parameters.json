@@ -38,5 +38,17 @@
   {
     "ParameterKey": "BucketName",
     "ParameterValue": "twitter-analysis-platform-bucket"
+  },
+  {
+    "ParameterKey": "StreamingOutputKey",
+    "ParameterValue": "tweets-streaming-output"
+  },
+  {
+    "ParameterKey": "StreamingCheckpointKey",
+    "ParameterValue": "checkpoint"
+  },
+  {
+    "ParameterKey": "TweetAggregatedResults",
+    "ParameterValue": "tweet-aggregated-results"
   }
 ]
