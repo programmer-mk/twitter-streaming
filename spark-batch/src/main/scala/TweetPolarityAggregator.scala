@@ -24,10 +24,13 @@ object TweetPolarityAggregator {
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
     spark.sparkContext.hadoopConfiguration.set("mapreduce.input.fileinputformat.input.dir.recursive","true")
 
+    val s3StreamingOutputKey = System.getenv("TWEETS_STREAMING_OUTPUT")
+    val s3AggregatedOutputKey = System.getenv("TWEETS_AGGREGATED_OUTPUT")
+
     val tweetData = spark.read
       .option("header", "true")
       .option("inferSchema", "true")
-      .csv("s3a://test-spark-miki-bucket/output")
+      .csv(s3StreamingOutputKey)
       .distinct()
 
     import spark.implicits._
@@ -50,7 +53,7 @@ object TweetPolarityAggregator {
       .repartition(1) // write everything in one file
       .write
       .option("header", "true")
-      .csv("s3a://test-spark-miki-bucket/aggregated-results")
+      .csv(s3AggregatedOutputKey)
 
     spark.stop()
   }

@@ -3,25 +3,43 @@ Description: deploy all containers to ecs
 Parameters:
   SubnetID:
     Type: String
+    Description: public subnet id where resources are available
   Name:
     Type: String
+    Description: application name
   Environment:
     Type: String
+    Description: application environment
   Domain:
     Type: String
+    Description: domain name for ecs services
   Vpc:
     Type: String
+    Description: virtual private network where resources are deployed
   BucketName:
     Type: String
-    Description: bucket for storing all pipeline data
+    Description: s3 bucket for storing all pipeline data
+  TweetAggregatedResults:
+    Type: String
+    Description: s3 key for batch results
+  StreamingOutputKey:
+    Type: String
+    Description: s3 key for streaming results
+  StreamingCheckpointKey:
+    Type: String
+    Description: s3 key for streaming checkpointing
   KafkaReplicationFactor:
     Type: String
+    Description: replication factor for kafka data, offsets ...
   TweetProducerEcrImage:
     Type: String
+    Description: docker image arn of producer app
   SparkStreamingAppEcrImage:
     Type: String
+    Description: docker image arn of streaming app
   SparkBatchAppEcrImage:
     Type: String
+    Description: docker image arn of batch app
 Resources:
   Cluster:
     Type: AWS::ECS::Cluster
@@ -670,6 +688,10 @@ Resources:
               Value: !Sub "kafka.${Domain}:9092"
             - Name: MYSQL_SERVICE
               Value: !Sub "mysql.${Domain}:3306"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_STREAMING_CHECKPOINT_LOCATION
+              Value: !Sub "s3a://${BucketName}/${StreamingCheckpointKey}"
       RequiresCompatibilities:
         - FARGATE
 
@@ -787,6 +809,10 @@ Resources:
           Environment:
             - Name: SPARK_MASTER
               Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_AGGREGATED_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
       RequiresCompatibilities:
         - FARGATE
   SparkBatchWorkerService:
@@ -833,6 +859,10 @@ Resources:
           Environment:
             - Name: SPARK_MASTER
               Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_AGGREGATED_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${TweetAggregatedResults}"
       RequiresCompatibilities:
         - FARGATE
 
@@ -870,7 +900,7 @@ Resources:
               S3Key:
                 Rules:
                   - Name: prefix
-                    Value: aggregated-results/ # PUT THIS AS STACK PARAMETER(ALSO PASS IT TO
+                    Value: !Ref TweetAggregatedResults
                   - Name: suffix
                     Value: .csv
             Function: !GetAtt ModelBuilderLambda.Arn
