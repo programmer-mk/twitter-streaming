@@ -17,6 +17,8 @@ Parameters:
     Type: String
   SparkStreamingAppEcrImage:
     Type: String
+  SparkBatchAppEcrImage:
+    Type: String
 Resources:
   Cluster:
     Type: AWS::ECS::Cluster
@@ -54,6 +56,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: spark-streaming-log-group
+  SparkBatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-log-group
   SparkBatchMasterLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -157,11 +163,21 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           CidrIp: 0.0.0.0/0
-  SparkStreamingServiceSecurityGroup:
+  SparkServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: spark-streaming-service-sg
-      GroupDescription: Security group for spark streaming service
+      GroupName: spark-service-sg
+      GroupDescription: Security group for spark streaming and batch services
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 20002
+          ToPort: 20003
+          SourceSecurityGroupId: !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+        - IpProtocol: tcp
+          FromPort: 20002
+          ToPort: 20003
+          SourceSecurityGroupId: !GetAtt SparkMasterServiceSecurityGroup.GroupId
+
   ZookeperTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -659,7 +675,7 @@ Resources:
       - PrivateNamespace
       - Cluster
       - SparkStreamingAppTaskDefinition
-      - SparkStreamingServiceSecurityGroup
+      - SparkServiceSecurityGroup
     Type: AWS::ECS::Service
     Properties:
       ServiceName: spark-streaming-app
@@ -673,7 +689,7 @@ Resources:
           Subnets:
             - !Ref SubnetID
           SecurityGroups:
-            - !GetAtt SparkStreamingServiceSecurityGroup.GroupId
+            - !GetAtt SparkServiceSecurityGroup.GroupId
 
   SparkBatchMasterTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -751,7 +767,7 @@ Resources:
     Properties:
       Family: spark-batch-worker-td
       Cpu: 512
-      Memory: 1024
+      Memory: 2048
       NetworkMode: awsvpc
       ExecutionRoleArn: !Ref ProcessorsExecutionRole
       ContainerDefinitions:
@@ -790,3 +806,50 @@ Resources:
             - !Ref SubnetID
           SecurityGroups:
             - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+
+  SparkBatchAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchLogGroup
+    Properties:
+      Family: spark-batch-app-td
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-app-container
+          Image: !Ref SparkBatchAppEcrImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+      RequiresCompatibilities:
+        - FARGATE
+
+  SparkBatchAppService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkBatchAppTaskDefinition
+      - SparkServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-app
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchAppTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkServiceSecurityGroup.GroupId
