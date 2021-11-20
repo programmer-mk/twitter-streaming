@@ -11,6 +11,9 @@ Parameters:
     Type: String
   Vpc:
     Type: String
+  BucketName:
+    Type: String
+    Description: bucket for storing all pipeline data
   KafkaReplicationFactor:
     Type: String
   TweetProducerEcrImage:
@@ -853,3 +856,94 @@ Resources:
             - !Ref SubnetID
           SecurityGroups:
             - !GetAtt SparkServiceSecurityGroup.GroupId
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - ModelBuilderLambda
+    Properties:
+      BucketName: !Ref BucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: aggregated-results/ # PUT THIS AS STACK PARAMETER(ALSO PASS IT TO
+                  - Name: suffix
+                    Value: .csv
+            Function: !GetAtt ModelBuilderLambda.Arn
+
+  ModelBuilderLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - ModelBuilderLambdaRole
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import urllib3
+          import logging
+          import json
+          import os
+          from botocore.exceptions import ClientError
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+            logger.info(f'Lambda started!')
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref BucketName
+      FunctionName: !Sub "${Name}-${Environment}-lambda"
+      Description: stops batch ecs services and start building ml model
+      Handler: index.handler
+      Role: !GetAtt ModelBuilderLambdaRole.Arn
+      Runtime: "python3.8"
+      Timeout: 15
+
+  ModelBuilderLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Name}-${Environment}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: lambda-logs-access-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+  ModelBuilderLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Name}-${Environment}-lambda"
+      RetentionInDays: 30
+
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - ModelBuilderLambda
+      - S3Bucket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ModelBuilderLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::${BucketName}"

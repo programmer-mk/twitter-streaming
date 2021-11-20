@@ -34,5 +34,9 @@
   {
     "ParameterKey": "SparkBatchAppEcrImage",
     "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-batch-app:latest"
+  },
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "twitter-analysis-platform-bucket"
   }
 ]
