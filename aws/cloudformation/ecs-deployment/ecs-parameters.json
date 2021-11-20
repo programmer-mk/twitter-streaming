@@ -30,5 +30,9 @@
   {
     "ParameterKey": "SparkStreamingAppEcrImage",
     "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-streaming-app:latest"
+  },
+  {
+    "ParameterKey": "SparkBatchAppEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-batch-app:latest"
   }
 ]

@@ -25,6 +25,8 @@ if [[ `is_uri $SPARK_APPLICATION_JAR_LOCATION`=="true" || -f "${SPARK_APPLICATIO
     /spark/bin/spark-submit \
         --class ${SPARK_APPLICATION_MAIN_CLASS} \
         --master ${SPARK_MASTER_URL} \
+        --conf spark.driver.port=20002 \
+        --conf spark.blockManager.port=20003 \
         ${SPARK_SUBMIT_ARGS} \
         ${SPARK_APPLICATION_JAR_LOCATION} ${SPARK_APPLICATION_ARGS}
 else
