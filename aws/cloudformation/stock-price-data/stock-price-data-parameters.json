@@ -17,6 +17,6 @@
   },
   {
     "ParameterKey": "BucketName",
-    "ParameterValue": "test-spark-miki-bucket"
+    "ParameterValue": "twitter-analysis-platform-bucket"
   }
 ]
