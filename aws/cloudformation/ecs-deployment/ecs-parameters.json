@@ -50,5 +50,25 @@
   {
     "ParameterKey": "TweetAggregatedResults",
     "ParameterValue": "tweet-aggregated-results"
+  },
+  {
+    "ParameterKey": "StockPriceKeyPrefix",
+    "ParameterValue": "stock-price-data"
+  },
+  {
+    "ParameterKey": "MergedDataKeyPrefix",
+    "ParameterValue": "merged-data"
+  },
+  {
+    "ParameterKey": "TrainingChunkPercent",
+    "ParameterValue": "80.0"
+  },
+  {
+    "ParameterKey": "NumpyLambdaLayerArn",
+    "ParameterValue": "arn:aws:lambda:eu-west-2:770693421928:layer:Klayers-python38-numpy:22"
+  },
+  {
+    "ParameterKey": "PandasLambdaLayerArn",
+    "ParameterValue": "arn:aws:lambda:eu-west-2:770693421928:layer:Klayers-python38-pandas:43"
   }
 ]
