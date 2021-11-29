@@ -1,3 +1,6 @@
 flask
 flask-restful
 joblib
+boto3
+pandas
+sklearn
