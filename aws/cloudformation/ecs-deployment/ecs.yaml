@@ -700,8 +700,8 @@ Resources:
       - MLModelAppLogGroup
     Properties:
       Family: ml-model-app-td
-      Cpu: 2048
-      Memory: 4096 # try with this
+      Cpu: 4096
+      Memory: 8192 # try with this
       NetworkMode: awsvpc
       ExecutionRoleArn: !Ref ProcessorsExecutionRole
       TaskRoleArn: !Ref ProcessorsExecutionRole
