@@ -10,31 +10,18 @@ from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from sklearn.pipeline import Pipeline
 import boto3
 import os
-import logging
-
-# # delete this two lines
-# os.environ['BUCKET_NAME'] = 'twitter-analysis-platform-bucket'
-# os.environ["MERGED_DATA_KEY_PREFIX"] = 'merged-data/training/' #{symbol_name}-with-polarity.csv
 
 s3_client = boto3.client('s3')
 bucket_name = os.environ['BUCKET_NAME']
 merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 def read_data():
-    microsoft_data = pd.read_csv('/home/jovyan/ml-predictions/data/MSFT.US-with-polarity.csv')
-    amazon_data = pd.read_csv('/home/jovyan/ml-predictions/data/AMZN.US-with-polarity.csv')
-    apple_data = pd.read_csv('/home/jovyan/ml-predictions/data/AAPL.US-with-polarity.csv')
-    tesla_data = pd.read_csv('/home/jovyan/ml-predictions/data/TSLA.US-with-polarity.csv')
-    bitcoin_data = pd.read_csv('/home/jovyan/ml-predictions/data/BTC-USD.CC-with-polarity.csv')
+    microsoft_data = pd.read_csv('/data/MSFT.US-with-polarity.csv')
+    amazon_data = pd.read_csv('/data/AMZN.US-with-polarity.csv')
+    apple_data = pd.read_csv('/data/AAPL.US-with-polarity.csv')
+    tesla_data = pd.read_csv('/data/TSLA.US-with-polarity.csv')
+    bitcoin_data = pd.read_csv('/data/BTC-USD.CC-with-polarity.csv')
 
-    # microsoft_data = pd.read_csv('./data/MSFT.US-historical-stocks.csv')
-    # amazon_data = pd.read_csv('./data/AMZN.US-historical-stocks.csv')
-    # apple_data = pd.read_csv('./data/AAPL.US-historical-stocks.csv')
-    # tesla_data = pd.read_csv('./data/TSLA.US-historical-stocks.csv')
-    # bitcoin_data = pd.read_csv('./data/BTC-USD.CC-historical-stocks.csv')
     return [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "BTC"]]
 
 
@@ -76,7 +63,7 @@ def save_models(estimators):
     for estimator in estimators:
         for estimator_key in estimator:
             if estimator_key != "stock_name":
-                joblib.dump(estimator[estimator_key], f'{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
+                joblib.dump(estimator[estimator_key], f'/models/{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
 
 
 def preprocess_data(data):
@@ -185,7 +172,8 @@ def download_data():
         if object_summary.key.endswith('.csv'):
             response = s3_client.get_object(Bucket=bucket_name, Key=object_summary.key)
             df_s3_data = pd.read_csv(response['Body'], sep=',')
-            df_s3_data.to_csv(f'/home/jovyan/ml-predictions/data/{object_summary.key.lstrip(full_prefix)}', sep=',', index=False)
+            print(f'downloaded file: {object_summary.key.lstrip(full_prefix)}')
+            df_s3_data.to_csv(f'/data/{object_summary.key.lstrip(full_prefix)}', sep=',', index=False)
 
 
 if __name__ == '__main__':

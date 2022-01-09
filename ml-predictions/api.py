@@ -186,9 +186,9 @@ def score():
     return {
         'stock_predictions': [{
             'microsoft': {
-                'logistic regression': int(prediction_msft_lg),
-                'support vector machine': int(prediction_msft_svm),
-                'decission tree': int(prediction_msft_dt)
+                'logistic regression': int(msft_lg_score),
+                'support vector machine': int(msft_svm_score),
+                'decission tree': int(msft_dt_score)
             },
             'amazon': {
                 'logistic regression': int(prediction_amzn_lg),
