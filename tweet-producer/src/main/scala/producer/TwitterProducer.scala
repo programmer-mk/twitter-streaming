@@ -8,9 +8,12 @@ import akka.actor.ActorSystem
 import com.danielasfregola.twitter4s.TwitterRestClient
 import com.danielasfregola.twitter4s.entities.enums.Language
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import play.api.libs.json.{JsValue, Json}
+import scalaj.http.{Http, HttpOptions}
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext}
+import scala.util.parsing.json.JSON
 
 object TwitterProducer {
 
@@ -24,8 +27,6 @@ object TwitterProducer {
 
     val searchTerms = Seq("microsoft", "amazon", "bitcoin", "apple", "tesla")
 
-    val twitterClient = TwitterRestClient()
-
     val props = new Properties()
     props.put("bootstrap.servers", BROKER_LIST)
     props.put("client.id", "KafkaTweetProducer")
@@ -33,44 +34,64 @@ object TwitterProducer {
     props.put("value.serializer", "model.TweetSerializer")
 
     val producer = new KafkaProducer[String, UserTweet](props)
-    val test = false
-    if(test) {
-      var i = 0
-      while(true) {
-        val value = s"record-${i}"
-        val key = s"key-${i}"
-        val dummyTweet = new UserTweet(key, value, Instant.now().toString, "test")
-        val data = new ProducerRecord[String, UserTweet](TOPIC, key, dummyTweet)
-        i +=1
-        Thread.sleep(1000)
-        producer.send(data)
-        println(value)
-      }
-    } else {
-      while(true) {
-        try {
-          val random = new Random
-          val searchTermIndex  = random.nextInt(searchTerms.size)
-          println(s"Search term index is: $searchTermIndex")
-          val searchTweets = twitterClient.searchTweet(searchTerms(searchTermIndex), language = Some(Language.English))
-          val maxWaitTime: FiniteDuration = Duration(5, TimeUnit.SECONDS)
-          val completedResults = Await.result(searchTweets, maxWaitTime)
-          completedResults.data.statuses foreach { tweet =>
-            val userTweet = new UserTweet(tweet.id_str, tweet.text, tweet.created_at.toString, searchTerms(searchTermIndex))
-            println(s"tweet value is: $userTweet")
-            val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.id_str, userTweet)
+
+    try {
+      searchTerms foreach  { term =>
+        var stillWork = true
+        var token = ""
+        while(stillWork) {
+          val queryJson = if (token.isEmpty) {
+            s"""{
+              "query":"${term} lang:en",
+              "maxResults": "100",
+              "fromDate":"201802010000",
+              "toDate":"201802282359"
+            }""".stripMargin
+          } else {
+            s"""{
+              "query":"${term} lang:en",
+              "maxResults": "100",
+              "fromDate":"201802010000",
+              "toDate":"201802282359",
+              "next": "${token}"
+            }""".stripMargin
+          }
+          val response = Http("https://api.twitter.com/1.1/tweets/search/fullarchive/prod.json")
+            .postData(queryJson)
+            .header("Content-Type", "application/json")
+            .header("authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAOmyRgEAAAAA4YesubUxyPH%2FtHMbtIlb0JAcu0A%3DBSNh2XxAXd6rUzZxS98TB10O9fozMTzxd2ASinikviIHKdG5L9")
+            .option(HttpOptions.readTimeout(10000)).asString
+
+          val body = response.body
+          val json: JsValue = Json.parse(body)
+          val results = (json \ "results").as[Seq[JsValue]].map { tweet =>
+            val idStr = (tweet \ "id_str").as[String]
+            val text = (tweet \ "text").as[String]
+            val createdAt = (tweet \ "created_at").as[String]
+            new UserTweet(idStr, text, createdAt, term)
+          }
+
+          results.foreach { tweet =>
+            val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.getKey, tweet)
             producer.send(data)
           }
-          Thread.sleep(3000)
-        } catch {
-          case e: java.util.concurrent.TimeoutException =>
-            Thread.sleep(3000)
-            println(s"Timeout occured. Sleeping for 1 second.Error: $e")
-          case e: Exception =>
-            Thread.sleep(15000)
-            println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
+
+          if(results.size < 100) {
+            // arrived to end of the list
+            stillWork = false
+          }else {
+            token = (json \ "next").as[String]
+          }
+          Thread.sleep(5000)
         }
       }
+    } catch {
+      case e: java.util.concurrent.TimeoutException =>
+        Thread.sleep(5000)
+        println(s"Timeout occured. Sleeping for 5 seconds.Error: $e")
+      case e: Exception =>
+        Thread.sleep(15000)
+        println(s"Error retrieving tweet. Check tweet streaming endpoint connection.Error: $e")
     }
   }
 }
