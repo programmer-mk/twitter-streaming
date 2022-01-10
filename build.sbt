@@ -55,6 +55,8 @@ resolvers += Resolver.sonatypeRepo("releases")
     .enablePlugins(sbtdocker.DockerPlugin)
     .settings(
       libraryDependencies ++= Seq(
+        "org.scalaj" %% "scalaj-http" % "2.4.2",
+        "com.typesafe.play" %% "play-json" % "2.7.3",
         "com.danielasfregola" %% "twitter4s" % "6.2",
         "org.apache.kafka" % "kafka_2.11" % "0.10.0.0" withSources() exclude("org.slf4j", "slf4j-log4j12") exclude("javax.jms", "jms") exclude("com.sun.jdmk", "jmxtools") exclude("com.sun.jmx", "jmxri"),
         "org.apache.kafka" % "kafka-clients" % "2.8.0",
