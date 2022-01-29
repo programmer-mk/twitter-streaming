@@ -1,0 +1,1125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: deploy all containers to ecs
+Parameters:
+  SubnetID:
+    Type: String
+    Description: public subnet id where resources are available
+  Name:
+    Type: String
+    Description: application name
+  Environment:
+    Type: String
+    Description: application environment
+  Domain:
+    Type: String
+    Description: domain name for ecs services
+  Vpc:
+    Type: String
+    Description: virtual private network where resources are deployed
+  BucketName:
+    Type: String
+    Description: s3 bucket for storing all pipeline data
+  TweetAggregatedResults:
+    Type: String
+    Description: s3 key for batch results
+  StockPriceKeyPrefix:
+    Type: String
+    Description: s3 key for historical stock price data
+  MergedDataKeyPrefix:
+    Type: String
+    Description: s3 key for historical stock price data + aggregated polarity
+  TrainingChunkPercent:
+    Type: String
+    Description: percent of data in training dataset
+  NumpyLambdaLayerArn:
+    Type: String
+    Description: arn for numpy layer in this region
+  PandasLambdaLayerArn:
+    Type: String
+    Description: arn for pandas layer in this region
+  StreamingOutputKey:
+    Type: String
+    Description: s3 key for streaming results
+  StreamingCheckpointKey:
+    Type: String
+    Description: s3 key for streaming checkpointing
+  KafkaReplicationFactor:
+    Type: String
+    Description: replication factor for kafka data, offsets ...
+  TweetProducerEcrImage:
+    Type: String
+    Description: docker image arn of producer app
+  SparkStreamingAppEcrImage:
+    Type: String
+    Description: docker image arn of streaming app
+  SparkBatchAppEcrImage:
+    Type: String
+    Description: docker image arn of batch app
+  MLModelAppEcrImage:
+    Type: String
+    Description: docker image arn of ml model app
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${Name}-${Environment}-cluster"
+  ZookeperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: zookeper-log-group
+  KafkaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: kafka-log-group
+  TweetProducerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: tweet-producer-log-group
+  SparkMasterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-master-log-group
+  SparkWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-worker-log-group
+  MysqlLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: myssql-log-group
+  GrafanaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: grafana-log-group
+  SparkStreamingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-streaming-log-group
+  MLModelAppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: ml-model-app-log-group
+  SparkBatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-log-group
+  SparkBatchMasterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-master-log-group
+  SparkBatchWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: spark-batch-worker-log-group
+  CollectorsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: collectors-execution-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  ProcessorsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: processors-execution-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+  ZookeperServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: zookeper-service-sg
+      GroupDescription: Security group for zookeper tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2181
+          ToPort: 2181
+          CidrIp: 0.0.0.0/0
+  KafkaServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: kafka-service-sg
+      GroupDescription: Security group for kafka tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          CidrIp: 0.0.0.0/0
+  TweetProducerServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: tweet-producer-service-sg
+      GroupDescription: Security group for tweet producer tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+  MLModelAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ml-model-app-service-sg
+      GroupDescription: Security group for ml model app tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+  SparkMasterServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-master-service-sg
+      GroupDescription: Security group for spark master tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 7077
+          ToPort: 7077
+          CidrIp: 0.0.0.0/0
+  SparkWorkerServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-worker-service-sg
+      GroupDescription: Security group for spark worker tasks
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8081
+          ToPort: 8081
+          CidrIp: 0.0.0.0/0
+  GrafanaServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: grafana-service-sg
+      GroupDescription: Security group for grafana service
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+  MysqlServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mysql-service-sg
+      GroupDescription: Security group for mysql service
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+  SparkServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: spark-service-sg
+      GroupDescription: Security group for spark streaming and batch services
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 20002
+          ToPort: 20003
+          SourceSecurityGroupId: !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+        - IpProtocol: tcp
+          FromPort: 20002
+          ToPort: 20003
+          SourceSecurityGroupId: !GetAtt SparkMasterServiceSecurityGroup.GroupId
+
+  ZookeperTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - ZookeperLogGroup
+    Properties:
+      Family: zookeper-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: zookeper-container
+          Image: docker.io/bitnami/zookeeper:3.7
+          PortMappings:
+            - ContainerPort: 2181
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref ZookeperLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: ALLOW_ANONYMOUS_LOGIN
+              Value: yes
+      RequiresCompatibilities:
+        - FARGATE
+
+  KafkaTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - KafkaLogGroup
+    Properties:
+      Family: kafka-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: kafka-container
+          Image: docker.io/bitnami/kafka:3
+          PortMappings:
+            - ContainerPort: 9092
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref KafkaLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: KAFKA_CFG_ZOOKEEPER_CONNECT
+              Value: !Sub "zookeper.${Domain}:2181"
+            - Name: ALLOW_PLAINTEXT_LISTENER
+              Value: yes
+            - Name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+              Value: true
+            - Name: KAFKA_CFG_NUM_PARTITIONS
+              Value: !Ref KafkaReplicationFactor
+            - Name: KAFKA_CFG_DEFAULT_REPLICATION_FACTOR
+              Value: !Ref KafkaReplicationFactor
+            - Name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+              Value: !Ref KafkaReplicationFactor
+      RequiresCompatibilities:
+        - FARGATE
+
+  TweetProducerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - TweetProducerLogGroup
+    Properties:
+      Family: tweet-producer-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: tweet-producer-container
+          Image: !Ref TweetProducerEcrImage
+          PortMappings:
+            - ContainerPort: 8080
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref TweetProducerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+      RequiresCompatibilities:
+        - FARGATE
+
+  PrivateNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Ref Domain
+      Vpc: !Ref Vpc
+  ZookeperDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for zookeper
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: zookeper
+      NamespaceId: !Ref PrivateNamespace
+  KafkaDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for kafka
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: kafka
+      NamespaceId: !Ref PrivateNamespace
+  ZookeperService:
+    DependsOn:
+      - PrivateNamespace
+      - ZookeperDiscoveryService
+      - Cluster
+      - ZookeperTaskDefinition
+      - ZookeperServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: zookeper
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref ZookeperTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ZookeperDiscoveryService.Arn
+          Port: 2181
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt ZookeperServiceSecurityGroup.GroupId
+  KafkaService:
+    DependsOn:
+      - ZookeperService
+      - PrivateNamespace
+      - KafkaDiscoveryService
+      - Cluster
+      - KafkaTaskDefinition
+      - KafkaServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: kafka
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref KafkaTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt KafkaDiscoveryService.Arn
+          Port: 9092
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt KafkaServiceSecurityGroup.GroupId
+  TweetProducerService:
+    DependsOn:
+      - KafkaService
+      - Cluster
+      - TweetProducerTaskDefinition
+      - TweetProducerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: tweet-producer
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TweetProducerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt TweetProducerServiceSecurityGroup.GroupId
+  SparkMasterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkMasterLogGroup
+    Properties:
+      Family: spark-master-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-master-container
+          Image: bde2020/spark-master:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 7077
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkMasterLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: INIT_DAEMON_STEP
+              Value: setup_spark
+            - Name: MYSQL_SERVICE
+              Value: !Sub "mysql.${Domain}:3306"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+      RequiresCompatibilities:
+        - FARGATE
+  SparkMasterDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for spark master
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: spark-master
+      NamespaceId: !Ref PrivateNamespace
+  SparkMasterService:
+    DependsOn:
+      - PrivateNamespace
+      - SparkMasterDiscoveryService
+      - Cluster
+      - SparkMasterTaskDefinition
+      - SparkMasterServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-master
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkMasterTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt SparkMasterDiscoveryService.Arn
+          Port: 7077
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkMasterServiceSecurityGroup.GroupId
+  SparkWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkWorkerLogGroup
+    Properties:
+      Family: spark-worker-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-worker-container
+          Image: bde2020/spark-worker:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkWorkerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-master.${Domain}:7077"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+            - Name: MYSQL_SERVICE
+              Value: !Sub "mysql.${Domain}:3306"
+      RequiresCompatibilities:
+        - FARGATE
+  SparkWorkerService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkWorkerTaskDefinition
+      - SparkWorkerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkWorkerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+  GrafanaTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - GrafanaLogGroup
+    Properties:
+      Family: grafana-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: grafana-container
+          Image: grafana/grafana
+          PortMappings:
+            - ContainerPort: 3000
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref GrafanaLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: GF_INSTALL_PLUGINS
+              Value: percona-percona-app
+      RequiresCompatibilities:
+        - FARGATE
+  MysqlTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - CollectorsExecutionRole
+      - MysqlLogGroup
+    Properties:
+      Family: mysql-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref CollectorsExecutionRole
+      ContainerDefinitions:
+        - Name: mysql-db-container
+          Image:  mysql:5.7
+          PortMappings:
+            - ContainerPort: 3306
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref MysqlLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            # put this in the secret
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: myRootPassword123
+            - Name: MYSQL_DATABASE
+              Value: myDb
+            - Name: MYSQL_USER
+              Value: myDbUser
+            - Name: MYSQL_PASSWORD
+              Value: myPassword123
+      RequiresCompatibilities:
+        - FARGATE
+  GrafanaDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service grafana
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: grafana
+      NamespaceId: !Ref PrivateNamespace
+  MysqlDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service mysql
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: mysql
+      NamespaceId: !Ref PrivateNamespace
+  MysqlService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - MysqlTaskDefinition
+      - MysqlServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: mysql
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref MysqlTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt MysqlDiscoveryService.Arn
+          Port: 3306
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt MysqlServiceSecurityGroup.GroupId
+  GrafanaService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - GrafanaTaskDefinition
+      - GrafanaServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: grafana
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref GrafanaTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt GrafanaDiscoveryService.Arn
+          Port: 3000
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt GrafanaServiceSecurityGroup.GroupId
+
+  MLModelAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - MLModelAppLogGroup
+    Properties:
+      Family: ml-model-app-td
+      Cpu: 4096
+      Memory: 8192 # try with this
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      TaskRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: ml-model-app-container
+          Image: !Ref MLModelAppEcrImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref MLModelAppLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: BUCKET_NAME
+              Value: !Ref BucketName
+            - Name: MERGED_DATA_KEY_PREFIX
+              Value: !Ref MergedDataKeyPrefix
+      RequiresCompatibilities:
+        - FARGATE
+
+  MLModelAppService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - MLModelAppTaskDefinition
+      - MLModelAppSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: ml-model-app
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref MLModelAppTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt MLModelAppSecurityGroup.GroupId
+
+  SparkStreamingAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkStreamingLogGroup
+    Properties:
+      Family: spark-streaming-app-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-streaming-app-container
+          Image: !Ref SparkStreamingAppEcrImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkStreamingLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-master.${Domain}:7077"
+            - Name: KAFKA_SERVICE
+              Value: !Sub "kafka.${Domain}:9092"
+            - Name: MYSQL_SERVICE
+              Value: !Sub "mysql.${Domain}:3306"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_STREAMING_CHECKPOINT_LOCATION
+              Value: !Sub "s3a://${BucketName}/${StreamingCheckpointKey}"
+      RequiresCompatibilities:
+        - FARGATE
+
+  SparkStreamingAppService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkStreamingAppTaskDefinition
+      - SparkServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-streaming-app
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkStreamingAppTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkServiceSecurityGroup.GroupId
+
+  SparkBatchMasterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchMasterLogGroup
+    Properties:
+      Family: spark-batch-master-td
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-master-container
+          Image: bde2020/spark-master:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 7077
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchMasterLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: INIT_DAEMON_STEP
+              Value: setup_spark
+      RequiresCompatibilities:
+        - FARGATE
+  SparkBatchMasterDiscoveryService:
+    DependsOn: PrivateNamespace
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for spark batch master
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: spark-batch-master
+      NamespaceId: !Ref PrivateNamespace
+  SparkBatchMasterService:
+    DependsOn:
+      - PrivateNamespace
+      - SparkBatchMasterDiscoveryService
+      - Cluster
+      - SparkBatchMasterTaskDefinition
+      - SparkMasterServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-master
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchMasterTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt SparkBatchMasterDiscoveryService.Arn
+          Port: 7077
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkMasterServiceSecurityGroup.GroupId
+
+  SparkBatchWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchWorkerLogGroup
+    Properties:
+      Family: spark-batch-worker-td
+      Cpu: 512
+      Memory: 2048
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-worker-container
+          Image: bde2020/spark-worker:3.1.1-hadoop3.2
+          PortMappings:
+            - ContainerPort: 8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchWorkerLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_AGGREGATED_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+      RequiresCompatibilities:
+        - FARGATE
+  SparkBatchWorkerService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkBatchWorkerTaskDefinition
+      - SparkWorkerServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchWorkerTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkWorkerServiceSecurityGroup.GroupId
+
+  SparkBatchAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ProcessorsExecutionRole
+      - SparkBatchLogGroup
+    Properties:
+      Family: spark-batch-app-td
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref ProcessorsExecutionRole
+      ContainerDefinitions:
+        - Name: spark-batch-app-container
+          Image: !Ref SparkBatchAppEcrImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref SparkBatchLogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPARK_MASTER
+              Value: !Sub "spark://spark-batch-master.${Domain}:7077"
+            - Name: TWEETS_STREAMING_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${StreamingOutputKey}"
+            - Name: TWEETS_AGGREGATED_OUTPUT
+              Value: !Sub "s3a://${BucketName}/${TweetAggregatedResults}"
+      RequiresCompatibilities:
+        - FARGATE
+
+  SparkBatchAppService:
+    DependsOn:
+      - PrivateNamespace
+      - Cluster
+      - SparkBatchAppTaskDefinition
+      - SparkServiceSecurityGroup
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: spark-batch-app
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref SparkBatchAppTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetID
+          SecurityGroups:
+            - !GetAtt SparkServiceSecurityGroup.GroupId
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - ModelBuilderLambda
+    Properties:
+      BucketName: !Ref BucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Ref TweetAggregatedResults
+                  - Name: suffix
+                    Value: .csv
+            Function: !GetAtt ModelBuilderLambda.Arn
+
+  ModelBuilderLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - ModelBuilderLambdaRole
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import urllib3
+          import logging
+          import json
+          import os
+          from io import StringIO
+          import numpy as np
+          import pandas as pd
+          from botocore.exceptions import ClientError
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          s3_client = boto3.client('s3')
+          bucket_name = os.environ['BUCKET_NAME']
+          tweets_aggregated_s3_key = os.environ['TWEETS_AGGREGATED_POLARITY_KEY_PREFIX']
+          merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
+
+          def split_data(data, symbol_name):
+            training_s3_key = f'{merged_data_key_prefix}/training/{symbol_name}-with-polarity.csv'
+            testing_s3_key = f'{merged_data_key_prefix}/testing/{symbol_name}-with-polarity.csv'
+            logger.info(f'start writing {symbol_name} data to s3...')
+            last_training_index = int((float(os.environ['TRAINING_CHUNK_PERCENT']) / 100.00) * data.shape[0])
+            training_data = data.iloc[:last_training_index]
+            testing_data = data.iloc[last_training_index:]
+            csv_buffer_training = StringIO()
+            training_data.to_csv(csv_buffer_training)
+            csv_buffer_testing = StringIO()
+            testing_data.to_csv(csv_buffer_testing)
+            s3_resource = boto3.resource('s3')
+            s3_resource.Object(bucket_name, f'{training_s3_key}').put(Body=csv_buffer_training.getvalue())
+            s3_resource.Object(bucket_name, f'{testing_s3_key}').put(Body=csv_buffer_testing.getvalue())
+
+          def merge_symbol_data_with_polarity(symbol_name, polarity_data, search_term_dict):
+            s3_key = f'{os.environ["STOCK_PRICE_KEY_PREFIX"]}/{symbol_name}-daily-stocks.csv'
+            response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+            stock_data = pd.read_csv(response['Body'], sep=',').dropna()
+            symbol_polarity = polarity_data[polarity_data['search_term'] == search_term_dict[symbol_name]]
+            #symbol_polarity.rename(columns={"date": "Date"})
+            joined_data = stock_data.merge(symbol_polarity, left_on='Date', right_on='date')
+            logger.info(f'first 10 results of joined data for symbol: {symbol_name} , {joined_data.head()}')
+            return joined_data
+
+          def pull_computed_polarity():
+            s3 = boto3.resource('s3')
+            my_bucket = s3.Bucket(bucket_name)
+            df_s3_data = None
+            for object_summary in my_bucket.objects.filter(Prefix=tweets_aggregated_s3_key):
+              if object_summary.key.endswith('.csv'):
+                response = s3_client.get_object(Bucket=bucket_name, Key=object_summary.key)
+                df_s3_data = pd.read_csv(response['Body'], sep=',').dropna()
+            return df_s3_data
+
+          def handler(event, context):
+            logger.info('Lambda started!')
+            polarity_data = pull_computed_polarity()
+            dict = {
+              'TSLA.US': 'tesla',
+              'MSFT.US': 'microsoft',
+              'AMZN.US': 'amazon',
+              'AAPL.US': 'apple',
+              'BTC-USD.CC': 'bitcoin'
+            }
+            target_company_symbols = ['TSLA.US','MSFT.US', 'AMZN.US', 'AAPL.US', 'BTC-USD.CC']
+            for symbol in target_company_symbols:
+              """
+                  merged data contains stock data + aggregated polarity of tweets on that day
+              """
+              merged_data = merge_symbol_data_with_polarity(symbol, polarity_data, dict)
+              split_data(merged_data, symbol)
+
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref BucketName
+          TWEETS_AGGREGATED_POLARITY_KEY_PREFIX: !Ref TweetAggregatedResults
+          STOCK_PRICE_KEY_PREFIX: !Ref StockPriceKeyPrefix
+          MERGED_DATA_KEY_PREFIX: !Ref MergedDataKeyPrefix
+          TRAINING_CHUNK_PERCENT: !Ref TrainingChunkPercent
+      FunctionName: !Sub "${Name}-${Environment}-lambda"
+      Description: stops batch ecs services and start building ml model
+      Handler: index.handler
+      Role: !GetAtt ModelBuilderLambdaRole.Arn
+      Runtime: "python3.8"
+      MemorySize: 256
+      Timeout: 300
+
+  ModelBuilderLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Name}-${Environment}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: lambda-logs-access-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+  ModelBuilderLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Name}-${Environment}-lambda"
+      RetentionInDays: 30
+
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - ModelBuilderLambda
+      - S3Bucket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ModelBuilderLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::${BucketName}"

@@ -26,6 +26,8 @@ services:
       - "8082:8081"
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
+      - "TWEETS_STREAMING_OUTPUT:s3a://twitter-analysis-platform-bucket/tweets-streaming-output"
+      - "TWEETS_AGGREGATED_OUTPUT:s3a://twitter-analysis-platform-bucket/tweet-aggregated-results"
   submit-spark:
     image: mkovacevic/spark-batch-app:latest
     container_name: submit-spark-job

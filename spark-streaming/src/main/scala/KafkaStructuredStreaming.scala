@@ -24,13 +24,23 @@ object KafkaStructuredStreaming {
     val spark = SparkSession
       .builder
       .appName(getClass.getName)
-      .master("spark://spark-master:7077")
+      .master(System.getenv("SPARK_MASTER"))
       .getOrCreate()
 
-    spark.sparkContext.getConf.set("spark.executor.memory", "1g")
-    spark.sparkContext.getConf.set("spark.driver.memory", "2g")
+
+    //    spark.sparkContext.hadoopConfiguration.set("fs.s3a.credentialstype", "AssumeRole")
+    //    spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.arn", "arn:aws:iam::809526675404:role/processors-execution-role")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.auth.AssumedRoleCredentialProvider")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.arn", "arn:aws:iam::809526675404:role/processors-execution-role")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint", "sts.eu-west-2.amazonaws.com")
+
+
+    //spark.sparkContext.getConf.set("spark.executor.memory", "1g")
+    //spark.sparkContext.getConf.set("spark.driver.memory", "2g")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", System.getenv("AWS_ACCESS_KEY_ID"))
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", System.getenv("AWS_SECRET_ACCESS_KEY"))
+    //spark.sparkContext.hadoopConfiguration.set("fs.s3a.assumed.role.sts.endpoint.region", "eu-west-2")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
@@ -39,7 +49,7 @@ object KafkaStructuredStreaming {
     val df = spark
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "kafka1:9092,kafka2:9093")
+      .option("kafka.bootstrap.servers", System.getenv("KAFKA_SERVICE"))
       .option("startingOffsets", "latest") // just messages after spark is up
       .option("subscribe", "tweet-upload-teest")
       .option("group.id", "kafka-spark-integration")
@@ -67,12 +77,12 @@ object KafkaStructuredStreaming {
       .outputMode("append")
       .format("csv")
       .option("header", "true")
-      .option("path", "s3a://test-spark-miki-bucket/output")
-      .option("checkpointLocation", "s3a://test-spark-miki-bucket/streaming/checkpoint")
+      .option("path", System.getenv("TWEETS_STREAMING_OUTPUT"))
+      .option("checkpointLocation", System.getenv("TWEETS_STREAMING_CHECKPOINT_LOCATION"))
       .trigger(Trigger.ProcessingTime("30 seconds"))
       .start()
-                        // mysql is container name
-    val url="jdbc:mysql://mysql:3306/myDb"
+
+    val url=s"jdbc:mysql://${System.getenv("MYSQL_SERVICE")}/myDb"
     val user ="myDbUser"
     val password = "myPassword123"
 

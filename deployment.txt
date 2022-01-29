@@ -1,0 +1,86 @@
+1) First create ECR repository for pushing images, cli example:
+
+    aws ecr create-repository \
+        --repository-name mysql \
+        --region eu-west-2
+
+
+Look into Cloudformation example!
+
+
+2) Retrieve an authentication token and authenticate your Docker client to your registry:
+
+    aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin 809526675404.dkr.ecr.eu-west-2.amazonaws.com
+
+
+    You will get "Login Succeeded" message if everything is ok.
+
+
+3) Build your Docker image using the following command:
+
+    docker build -t mysql:5.7 .
+
+
+4) After the build completes, tag your image so you can push the image to this repository:
+
+    docker tag mysql:5.7 809526675404.dkr.ecr.eu-west-2.amazonaws.com/mysql:5.7
+
+
+5) Run the following command to push this image to your newly created AWS repository:
+
+
+    docker push 809526675404.dkr.ecr.eu-west-2.amazonaws.com/mysql:5.7
+
+
+6) list stopped tasks on the cluster:
+
+    aws ecs list-tasks \
+         --cluster mysql-test \
+         --desired-status STOPPED \
+         --region eu-west-2
+
+7) found task failiure reason:
+
+    aws ecs describe-tasks \
+         --cluster mysql-test \
+         --tasks arn:aws:ecs:eu-west-2:809526675404:task/mysql-test/04afefe42b6f4dc2a202dda4ed358cb5 \
+         --region eu-west-2
+
+8) local mysql running with ecr image:
+
+docker run --name mysql-ecr-test -e MYSQL_ROOT_PASSWORD=myRootPassword123 \
+      -e MYSQL_DATABASE=myDb \
+      -e MYSQL_USER=myDbUser \
+      -e MYSQL_PASSWORD=myPassword123 \
+	  -p 3306:3306 -t -d 809526675404.dkr.ecr.eu-west-2.amazonaws.com/mysql:5.7
+
+
+
+**** grafana *****
+
+
+9) create ecr repository:
+
+aws ecr create-repository \
+        --repository-name tweet-producer \
+        --region eu-west-2
+
+
+10) After the build completes, tag your image so you can push the image to this repository:
+
+    docker tag mkovacevic/tweet-producer-app:latest 809526675404.dkr.ecr.eu-west-2.amazonaws.com/tweet-producer:latest
+
+11)
+
+    docker push 809526675404.dkr.ecr.eu-west-2.amazonaws.com/tweet-producer:latest
+
+12) Run the following command to push this image to your newly created AWS repository:
+
+    docker run --name grafana-ecr-test -p 3000:3000 -t -d f809526675404.dkr.ecr.eu-west-2.amazonaws.com/mysql:5.7
+
+
+
+**** Note here ****
+
+FOR connecting and creating grafana dashboards, grab ec2 instance with deployed task(task which contains mysql and grafana together) and connect to port 3000 ->>>> http://instanceip:3000
+After that lgoin there as admin user and when adding mysql datasource look into grafana-mysql-ecs-connection.png picture in this repository.Happy learning!!

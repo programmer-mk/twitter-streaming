@@ -8,21 +8,21 @@ from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
 
 from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from sklearn.pipeline import Pipeline
+import boto3
+import os
 
-microsoft_data = pd.read_csv('/home/jovyan/ml-predictions/data/MSFT.US-historical-stocks.csv')
-amazon_data = pd.read_csv('/home/jovyan/ml-predictions/data/AMZN.US-historical-stocks.csv')
-apple_data = pd.read_csv('/home/jovyan/ml-predictions/data/AAPL.US-historical-stocks.csv')
-tesla_data = pd.read_csv('/home/jovyan/ml-predictions/data/TSLA.US-historical-stocks.csv')
-bitcoin_data = pd.read_csv('/home/jovyan/ml-predictions/data/BTC-USD.CC-historical-stocks.csv')
+s3_client = boto3.client('s3')
+bucket_name = os.environ['BUCKET_NAME']
+merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
 
+def read_data():
+    microsoft_data = pd.read_csv('/data/MSFT.US-with-polarity.csv')
+    amazon_data = pd.read_csv('/data/AMZN.US-with-polarity.csv')
+    apple_data = pd.read_csv('/data/AAPL.US-with-polarity.csv')
+    tesla_data = pd.read_csv('/data/TSLA.US-with-polarity.csv')
+    bitcoin_data = pd.read_csv('/data/BTC-USD.CC-with-polarity.csv')
 
-# microsoft_data = pd.read_csv('./data/MSFT.US-historical-stocks.csv')
-# amazon_data = pd.read_csv('./data/AMZN.US-historical-stocks.csv')
-# apple_data = pd.read_csv('./data/AAPL.US-historical-stocks.csv')
-# tesla_data = pd.read_csv('./data/TSLA.US-historical-stocks.csv')
-# bitcoin_data = pd.read_csv('./data/BTC-USD.CC-historical-stocks.csv')
-
-stocks = [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "BTC"]]
+    return [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "BTC"]]
 
 
 def SMA(data, period=30, column='Close'):
@@ -63,7 +63,7 @@ def save_models(estimators):
     for estimator in estimators:
         for estimator_key in estimator:
             if estimator_key != "stock_name":
-                joblib.dump(estimator[estimator_key], f'{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
+                joblib.dump(estimator[estimator_key], f'/models/{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
 
 
 def preprocess_data(data):
@@ -163,14 +163,32 @@ def nested_cv_decission_tree(X, Y, stock_name):
     return clf
 
 
+def download_data():
+    print("Downloading data started...")
+    s3 = boto3.resource('s3')
+    my_bucket = s3.Bucket(bucket_name)
+    full_prefix = f'{merged_data_key_prefix}/training'
+    for object_summary in my_bucket.objects.filter(Prefix=full_prefix):
+        if object_summary.key.endswith('.csv'):
+            response = s3_client.get_object(Bucket=bucket_name, Key=object_summary.key)
+            df_s3_data = pd.read_csv(response['Body'], sep=',')
+            print(f'downloaded file: {object_summary.key.lstrip(full_prefix)}')
+            df_s3_data.to_csv(f'/data/{object_summary.key.lstrip(full_prefix)}', sep=',', index=False)
+
+
 if __name__ == '__main__':
+    download_data()
+    stocks = read_data()
     for stock in stocks:
         data = stock[0]
         stock_name = stock[1]
         X, Y = preprocess_data(data)
         lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
+        print(f'logistic regression for {stock_name} finished')
         svm_estimator = nested_cv_svm(X,Y, stock_name)
+        print(f'svm for {stock_name} finished')
         dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
+        print(f'decission tree for {stock_name} finished')
         save_models([
             {"lg":lg_estimator, "stock_name": stock_name},
             {"svm":svm_estimator, "stock_name": stock_name},

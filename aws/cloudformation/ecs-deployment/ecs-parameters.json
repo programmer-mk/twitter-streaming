@@ -1,0 +1,78 @@
+[
+  {
+    "ParameterKey": "Name",
+    "ParameterValue": "tweet-analysis"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "Vpc",
+    "ParameterValue": "vpc-d36c1ebb"
+  },
+  {
+    "ParameterKey": "SubnetID",
+    "ParameterValue": "subnet-a84790e4"
+  },
+  {
+    "ParameterKey": "Domain",
+    "ParameterValue": "tweetanalysis.prod.com"
+  },
+  {
+    "ParameterKey": "KafkaReplicationFactor",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "TweetProducerEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/tweet-producer:latest"
+  },
+  {
+    "ParameterKey": "SparkStreamingAppEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-streaming-app:latest"
+  },
+  {
+    "ParameterKey": "SparkBatchAppEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/spark-batch-app:latest"
+  },
+  {
+    "ParameterKey": "MLModelAppEcrImage",
+    "ParameterValue": "809526675404.dkr.ecr.eu-west-2.amazonaws.com/ml-model-app:latest"
+  },
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "twitter-analysis-platform-bucket"
+  },
+  {
+    "ParameterKey": "StreamingOutputKey",
+    "ParameterValue": "tweets-streaming-output"
+  },
+  {
+    "ParameterKey": "StreamingCheckpointKey",
+    "ParameterValue": "checkpoint"
+  },
+  {
+    "ParameterKey": "TweetAggregatedResults",
+    "ParameterValue": "tweet-aggregated-results"
+  },
+  {
+    "ParameterKey": "StockPriceKeyPrefix",
+    "ParameterValue": "stock-price-data"
+  },
+  {
+    "ParameterKey": "MergedDataKeyPrefix",
+    "ParameterValue": "merged-data"
+  },
+  {
+    "ParameterKey": "TrainingChunkPercent",
+    "ParameterValue": "80.0"
+  },
+  {
+    "ParameterKey": "NumpyLambdaLayerArn",
+    "ParameterValue": "arn:aws:lambda:eu-west-2:770693421928:layer:Klayers-python38-numpy:22"
+  },
+  {
+    "ParameterKey": "PandasLambdaLayerArn",
+    "ParameterValue": "arn:aws:lambda:eu-west-2:770693421928:layer:Klayers-python38-pandas:43"
+  }
+]
