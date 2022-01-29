@@ -11,6 +11,8 @@ services:
       MYSQL_DATABASE: myDb
       MYSQL_USER: myDbUser
       MYSQL_PASSWORD: myPassword123
+    volumes:
+      - /Users/mkovacevic/Desktop/docker/mysql-data:/var/lib/mysql
 
   grafana:
     image: grafana/grafana

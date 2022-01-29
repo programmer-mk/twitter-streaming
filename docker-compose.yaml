@@ -50,6 +50,8 @@ services:
     tty: true
     environment:
       - KAFKA_SERVICE=kafka1:9092,kafka2:9093
+      - FROM_DATE=201802010000
+      - TO_DATE=201802282359
     depends_on:
       - zookeeper
       - kafka1

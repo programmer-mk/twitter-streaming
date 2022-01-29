@@ -2,7 +2,7 @@ import com.vader.sentiment.analyzer.SentimentAnalyzer
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.apache.spark.sql.streaming.Trigger
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
 import org.apache.spark.sql.functions.{col, from_json, lit}
 import streaming.Util
 
@@ -12,12 +12,12 @@ object KafkaStructuredStreaming {
 
   case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String, search_term: String)
 
-  def computePolarity = (input: String) => {
+  def computePolarity = (input: String, likeCount: Int, retweetCount: Int, followersCount: Int) => {
     val sentimentAnalyzer = new SentimentAnalyzer(input)
     sentimentAnalyzer.analyze()
     val polarities = sentimentAnalyzer.getPolarity
     val compoundPolarity = polarities.get("compound")
-    compoundPolarity
+    compoundPolarity * followersCount * (likeCount + 1) * (retweetCount + 1)
   }
 
   def main(args: Array[String]): Unit = {
@@ -60,6 +60,11 @@ object KafkaStructuredStreaming {
       .add("text",StringType)
       .add("created",StringType)
       .add("searchTerm",StringType)
+      .add("stats", new StructType()
+        .add("likeCount", IntegerType)
+        .add("retweetCount", IntegerType)
+        .add("userFollowersCount", IntegerType)
+      )
 
     val computePolarityUdf = spark.udf.register("computePolarity", computePolarity)
     val cleanTextUdf = spark.udf.register("cleanTextUdf", Util.cleanDocument)
@@ -67,9 +72,12 @@ object KafkaStructuredStreaming {
     val tweetDataset = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
       .select(col("key").as("t_key"), from_json(col("value"), schema).as("data"))
       .select(col("t_key"), col("data.text"), col("data.created"), col("data.searchTerm").as("search_term"))
+
       .withColumn("id", lit(0))
       .withColumn("processed_text", cleanTextUdf(col("text")))
-      .withColumn("polarity", computePolarityUdf(col("processed_text")))
+      .withColumn("polarity", computePolarityUdf(col("processed_text"), col("data.stats.likeCount"),
+        col("data.stats.retweetCount"), col("data.stats.userFollowersCount")
+      ))
       .drop("text")
       .as[UserTweet]
 
