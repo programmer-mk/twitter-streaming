@@ -4,4 +4,4 @@ project/target
 requests.txt
 spark-streaming/src/main/resources/application.conf
 # keep data for now locally, not in vcs
-tweet-producer/src/main/resources/
+tweet-producer/src/main/resources/*.csv
