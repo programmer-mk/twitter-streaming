@@ -89,7 +89,6 @@ resolvers += Resolver.sonatypeRepo("releases")
         "org.apache.spark" % "spark-streaming-kafka-0-10_2.12" % "3.1.2",
         "org.apache.spark" % "spark-sql-kafka-0-10_2.12" % "3.1.2",
         "org.apache.kafka" %% "kafka" % "2.8.0",
-        "log4j" % "log4j" % "1.2.14",
         "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
         "com.fasterxml.jackson.core" % "jackson-databind" % "2.5.3",
         "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.8.4",
