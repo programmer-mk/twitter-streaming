@@ -12,8 +12,7 @@ object KafkaStructuredStreaming {
 
   case class TweetStats(likeCount: Int, retweetCount: Int, userFollowersCount: Int)
 
-  case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String,
-                       search_term: String, likeCount: Int, retweetCount: Int, userFollowersCount: Int)
+  case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String, search_term: String)
 
   def computePolarity = (input: String, likeCount: Integer, retweetCount: Integer, followersCount: Integer) => {
     val sentimentAnalyzer = new SentimentAnalyzer(input)
@@ -71,6 +70,7 @@ object KafkaStructuredStreaming {
     val computePolarityUdf = spark.udf.register("computePolarity", computePolarity)
     val cleanTextUdf = spark.udf.register("cleanTextUdf", Util.cleanDocument)
 
+
     val tweetDataset = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
       .select(col("key").as("t_key"), from_json(col("value"), schema).as("data"))
       .select(col("t_key"), col("data.text"), col("data.created"),
@@ -84,7 +84,12 @@ object KafkaStructuredStreaming {
         col("retweetCount"), col("userFollowersCount")
       ))
       .drop("text")
+      .drop("likeCount")
+      .drop("retweetCount")
+      .drop("userFollowersCount")
       .as[UserTweet]
+
+    tweetDataset.printSchema()
 
     val stream = tweetDataset.writeStream
       .outputMode("append")
