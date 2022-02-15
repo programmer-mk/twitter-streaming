@@ -219,6 +219,17 @@ if __name__ == '__main__':
     compund_agg = extended_data[["day_date", "compound"]].groupby(["day_date"]).sum()["compound"].to_frame()
     merged_data = pd.merge(compund_agg, stock_values, on="day_date")
 
+
+    """
+        create method here for this computation, but it looks like  there is at least 1 tweet on every market day between 2015-2020 
+    """
+    missed_days = pd.merge(compund_agg, stock_values, on='day_date', how='outer', indicator=True)
+    missed_market_days = missed_days[missed_days['_merge'] != 'both']
+
+
+    company_per_day_tweets = extended_data[["day_date", "company_name"]].groupby(["day_date", "company_name"]).size()
+    print('test')
+
     # 5.draw_stock_price_with_sentiment(merged_data)
 
     # 6. tweets_count_from_beginning(extended_data, "Microsoft", "negative")
