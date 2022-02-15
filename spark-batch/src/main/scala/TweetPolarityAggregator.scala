@@ -1,5 +1,4 @@
-import org.apache.spark.sql.functions.from_unixtime
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 
 object TweetPolarityAggregator {
 
@@ -38,20 +37,24 @@ object TweetPolarityAggregator {
     import org.apache.spark.sql.functions._
 
     val datePolarityGrouped = tweetData.map(row => {
+      val t_key = row.getLong(0)
       val createdDate = row.getInt(1)
       val polarity = row.getDouble(5)
       val searchTerm = row.getString(2)
-      (createdDate, searchTerm ,polarity)
+      (t_key, createdDate, searchTerm ,polarity)
      }
-    ).toDF("date","search_term", "polarity")
+    ).toDF("t_key", "date","search_term", "polarity")
       .withColumn("date", to_timestamp(from_unixtime($"date")))
 
     val transformedDf = datePolarityGrouped
       .withColumn("date", to_date($"date", "MM-dd-yyyy"))
 
-    val aggregatedResults = transformedDf.groupBy("date", "search_term")
-      .sum("polarity")
-      .toDF("date", "search_term", "total_polarity")
+    val aggregatedResults = transformedDf.groupBy("date", "search_term").agg(
+      functions.count("t_key").as("count"),
+      functions.sum("polarity").as("agg_polarity")
+    )
+      //.sum("polarity")
+      //.toDF("date", "search_term", "total_polarity", "tweet_count")
 
     aggregatedResults
       .repartition(1) // write everything in one file
