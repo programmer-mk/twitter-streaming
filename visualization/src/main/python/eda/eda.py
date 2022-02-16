@@ -13,6 +13,13 @@ nltk.download('punkt')
 stop_words=stopwords.words('english')
 sia=SentimentIntensityAnalyzer()
 
+companies = {
+    "AAPL" : "apple",
+    "GOOG" : "Google Inc",
+    "AMZN" : "Amazon.com",
+    "TSLA" : "Tesla Inc",
+    "MSFT":"Microsoft"
+}
 
 def create_test_dataset(data):
     return pd.concat([data.head(10001), data.loc[200000:2010000], data.loc[2000000:2001000], data.tail(10000)], ignore_index=True)
@@ -23,6 +30,7 @@ def remove_stopwords(txt):
     words=[word for word in words if word.isalpha()]
     words=[word for word in words if not word in stop_words]
     return ' '.join(words)
+
 
 def transform_with_sentiment(tweets):
     tweet_polarity=tweets["body"].apply(lambda z:sia.polarity_scores((z)))
@@ -79,6 +87,27 @@ def sentiment_group_percent_per_company(data):
         .reset_index()
 
     sns.catplot(x=x,y='percent',hue=y,kind='bar',data=grouped_data).set(xlabel=None)
+    print('stop execution here.')
+
+
+def polarity_group_percent_per_company(data):
+    x, y = "search_term","sentiment"
+    grouped_data = data.groupby(x).sum()
+
+    grouped_data["positive_count"] = grouped_data["positive_count"] / grouped_data["count"] * 100
+    grouped_data["negative_count"] = grouped_data["negative_count"] / grouped_data["count"] * 100
+    grouped_data["neutral_count"] = grouped_data["neutral_count"] / grouped_data["count"] * 100
+
+    transformed_grouped_data = pd.DataFrame()
+    for company in companies:
+        positive_count = grouped_data.loc[company]["positive_count"]
+        negative_count = grouped_data.loc[company]["negative_count"]
+        neutral_count = grouped_data.loc[company]["neutral_count"]
+        transformed_grouped_data = transformed_grouped_data.append({'company_name': companies[company], 'sentiment': 'positive', 'percent': positive_count}, ignore_index = True)
+        transformed_grouped_data = transformed_grouped_data.append({'company_name': companies[company], 'sentiment': 'negative', 'percent': negative_count}, ignore_index = True)
+        transformed_grouped_data = transformed_grouped_data.append({'company_name': companies[company], 'sentiment': 'neutral', 'percent': neutral_count}, ignore_index = True)
+
+    sns.catplot(x='company_name',y='percent',hue=y,kind='bar',data=transformed_grouped_data).set(xlabel=None)
     print('stop execution here.')
 
 
@@ -175,34 +204,47 @@ def close_value_from_beginning(data, company_sym):
     plt.show()
 
 
+def load_all_data():
+    print('Start loading data...')
+    company = pd.read_csv('Company.csv')
+    company_tweet = pd.read_csv('Company_Tweet.csv')
+    tweet = pd.read_csv('Tweet.csv')
+    stock_values = load_stock_data()
+    print('Data loaded!')
+
+    # merge datasets
+    name_tick_dic=pd.Series(company.company_name.values, index=company.ticker_symbol).to_dict()
+    company_tweet.ticker_symbol=company_tweet.ticker_symbol.map(name_tick_dic)
+    tick_id_dict=pd.Series(company_tweet.ticker_symbol.values,index=company_tweet.tweet_id).to_dict()
+    tweet.tweet_id=tweet.tweet_id.map(tick_id_dict)
+    tweet.rename(columns={"tweet_id":"company_name"},inplace=True)
+
+    # tweet.body = tweet["body"].apply(remove_stopwords)
+    # print("Stop words removed")
+    extended_data = transform_with_sentiment(tweet)
+    print("Sentiments added")
+    extended_data.to_csv("Tweet_Processed.csv", index=False)
+    print("Saved processed tweets to disk")
+    return extended_data, stock_values
+
+
 if __name__ == '__main__':
     reuse = True
+    spark_output_data = True
     if not reuse:
-        print('Start loading data...')
-        company = pd.read_csv('Company.csv')
-        company_tweet = pd.read_csv('Company_Tweet.csv')
-        tweet = pd.read_csv('Tweet.csv')
-        stock_values = load_stock_data()
-        print('Data loaded!')
-
-        # merge datasets
-        name_tick_dic=pd.Series(company.company_name.values, index=company.ticker_symbol).to_dict()
-        company_tweet.ticker_symbol=company_tweet.ticker_symbol.map(name_tick_dic)
-        tick_id_dict=pd.Series(company_tweet.ticker_symbol.values,index=company_tweet.tweet_id).to_dict()
-        tweet.tweet_id=tweet.tweet_id.map(tick_id_dict)
-        tweet.rename(columns={"tweet_id":"company_name"},inplace=True)
-
-        # tweet.body = tweet["body"].apply(remove_stopwords)
-        # print("Stop words removed")
-        extended_data = transform_with_sentiment(tweet)
-        print("Sentiments added")
-        extended_data.to_csv("Tweet_Processed.csv", index=False)
-        print("Saved processed tweets to disk")
+        extended_data, stock_values = load_all_data()
     else:
-        extended_data = pd.read_csv('Tweet_Processed.csv')
+        if not spark_output_data:
+            extended_data = pd.read_csv('Tweet_Processed.csv')
+            extended_data = transform_date_column(extended_data, "post_date")
+        else:
+            extended_data = pd.read_csv('Spark_Tweet_Output.csv')
+            """
+                modified answer 3.
+            """
+            polarity_group_percent_per_company(extended_data)
         stock_values = load_stock_data()
 
-    extended_data = transform_date_column(extended_data, "post_date")
     extended_data = compute_days_passed(extended_data)
     stock_values = compute_days_passed(stock_values)
 
@@ -211,7 +253,7 @@ if __name__ == '__main__':
 
     # 2. tweet_percent_per_year(extended_data)
 
-    # 3. sentiment_group_percent_per_company(extended_data)
+    sentiment_group_percent_per_company(extended_data)
 
     # 4. companies_trolled(extended_data)
 

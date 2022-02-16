@@ -51,7 +51,10 @@ object TweetPolarityAggregator {
 
     val aggregatedResults = transformedDf.groupBy("date", "search_term").agg(
       functions.count("t_key").as("count"),
-      functions.sum("polarity").as("agg_polarity")
+      functions.sum("polarity").as("agg_polarity"),
+      functions.count(functions.when(col("polarity").gt(0), 1)).as("positive_count"),
+      functions.count(functions.when(col("polarity").lt(0), 1)).as("negative_count"),
+      functions.count(functions.when(col("polarity").equalTo(0), 1)).as("neutral_count"),
     )
       //.sum("polarity")
       //.toDF("date", "search_term", "total_polarity", "tweet_count")
