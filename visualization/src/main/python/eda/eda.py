@@ -137,9 +137,9 @@ def load_stock_data():
     return stock_values
 
 
-def draw_stock_price_with_sentiment(merged_data, score_name="compound"):
-    ticker_symbol = 'MSFT'
-    sentiment_overtime(merged_data[merged_data['ticker_symbol'] == ticker_symbol], ticker_symbol, score_column_name=score_name)
+def draw_stock_price_with_sentiment(merged_data, score_name="agg_polarity2"):
+    for company in companies:
+        sentiment_overtime(merged_data[merged_data['ticker_symbol'] == company], company, score_column_name=score_name)
 
 
 def sentiment_overtime(merged_data, title, score_column_name="compound"):
@@ -155,7 +155,7 @@ def sentiment_overtime(merged_data, title, score_column_name="compound"):
     lines2, labels2 = ax2.get_legend_handles_labels()
 
     ax1.set_xlabel('Day date')
-    ax1.set_xticks(ticks=[10.0, 210.0, 420.0, 630.0, 840.0])
+    ax1.set_xticks(ticks=[10.0, 400.0, 800.0, 1200.0, 1600.0])
     ax1.set_xticklabels(['2015', '2016', '2017', '2018', '2019'])
     ax1.set_ylabel('Sentiment aggregated score', color="blue")
 
@@ -163,21 +163,21 @@ def sentiment_overtime(merged_data, title, score_column_name="compound"):
     plt.show()
 
 
-def compute_days_passed(data):
+def compute_days_passed(data, date_column="date"):
     data['start_date'] = '2015-01-01'
     start_dt = pd.to_datetime(data.start_date.values, format="%Y-%m-%d")
-    dt = pd.to_datetime(data.day_date.values, format="%Y-%m-%d")
+    dt = pd.to_datetime(data[date_column].values, format="%Y-%m-%d")
 
     diff = (dt - start_dt).days
     data["day_passed"] = diff.tolist()
 
-    data.drop('start_date', axis=1, inplace=True)
+    data.drop(date_column, axis=1, inplace=True)
     return data
 
 
 """
     data: whole tweets dataset
-    company_name: can be in group (Microsoft, Google Inc, Tesla Inc, Amazon.com, apple
+    company_name: can be in group (Microsoft, Google Inc, Tesla Inc, Amazon.com, apple)
     sentiment: negative or positive
 """
 def tweets_count_from_beginning(data, company_name, sentiment):
@@ -192,6 +192,23 @@ def tweets_count_from_beginning(data, company_name, sentiment):
 
 """
     data: whole tweets dataset
+    company_name: can be in group (Microsoft, Google Inc, Tesla Inc, Amazon.com, apple)
+    sentiment: negative or positive
+"""
+def spark_tweets_count_from_beginning(data, sentiment):
+    for company_name in companies:
+        filter_data = data[data['search_term'] == company_name]
+        #sentiment_agg_day_passed = filter_data[["day_passed",sentiment]].groupby(["day_passed"]).sum()
+        plt.scatter(filter_data['day_passed'].values, filter_data[f'{sentiment}_count'].values)
+        plt.xlabel("Days after Jan. 1, 2015", fontsize=12)
+        plt.ylabel(f"{sentiment} tweets", fontsize=12)
+        plt.title(company_name, fontsize=14)
+        plt.show()
+        print('stop')
+
+
+"""
+    data: whole tweets dataset
     company_name: can be in group (Microsoft, Google Inc, Tesla Inc, Amazon.com, apple
 """
 def close_value_from_beginning(data, company_sym):
@@ -202,6 +219,19 @@ def close_value_from_beginning(data, company_sym):
     plt.ylabel(f"Market value", fontsize=12)
     plt.title(company_sym, fontsize=14)
     plt.show()
+    print('stop')
+
+
+def delta_close_value_from_beginning(data, company_sym):
+    filter_data = data[data['ticker_symbol'] == company_sym]
+    filter_data["delta_close_value"] = np.array([0] + list(filter_data.close_value.values[1:] - filter_data.close_value.values[:-1]))
+    market_val_agg_day_passed = filter_data[["day_passed", "delta_close_value"]].groupby(["day_passed"]).sum()
+    plt.scatter(market_val_agg_day_passed.index, market_val_agg_day_passed["delta_close_value"].values)
+    plt.xlabel("Days after Jan. 1, 2015", fontsize=12)
+    plt.ylabel(f"Delta Market value", fontsize=12)
+    plt.title(company_sym, fontsize=14)
+    plt.show()
+    print('stop')
 
 
 def load_all_data():
@@ -228,12 +258,21 @@ def load_all_data():
     return extended_data, stock_values
 
 
+def round(value):
+    if value > 10000:
+        return 10000
+    elif value < -10000:
+        return -10000
+    else:
+        return value
+
 if __name__ == '__main__':
     reuse = True
     spark_output_data = True
     if not reuse:
         extended_data, stock_values = load_all_data()
     else:
+        stock_values = load_stock_data()
         if not spark_output_data:
             extended_data = pd.read_csv('Tweet_Processed.csv')
             extended_data = transform_date_column(extended_data, "post_date")
@@ -241,9 +280,33 @@ if __name__ == '__main__':
             extended_data = pd.read_csv('Spark_Tweet_Output.csv')
             """
                 modified answer 3.
+                polarity_group_percent_per_company(extended_data)
+                
+                modified answer 4.
+                merged_data = pd.merge(extended_data, stock_values, how="inner", left_on=["date", "search_term"], right_on=["day_date", "ticker_symbol"])
+                merged_data[["agg_polarity2"]] = merged_data["agg_polarity"].apply(round)
+                draw_stock_price_with_sentiment(merged_data)
+                
+                modified answer 5.
+                extended_data = compute_days_passed(extended_data)
+                spark_tweets_count_from_beginning(extended_data, "positive")
+                spark_tweets_count_from_beginning(extended_data, "negative")
+                
+                close_value_from_beginning(stock_values, "GOOGL")
+                close_value_from_beginning(stock_values, "TSLA")
+                close_value_from_beginning(stock_values, "AMZN")
+                close_value_from_beginning(stock_values, "MSFT")
+                close_value_from_beginning(stock_values, "AAPL")
             """
-            polarity_group_percent_per_company(extended_data)
-        stock_values = load_stock_data()
+            stock_values = compute_days_passed(stock_values, 'day_date')
+
+            delta_close_value_from_beginning(stock_values, "GOOGL")
+            delta_close_value_from_beginning(stock_values, "TSLA")
+            delta_close_value_from_beginning(stock_values, "AMZN")
+            delta_close_value_from_beginning(stock_values, "MSFT")
+            delta_close_value_from_beginning(stock_values, "AAPL")
+
+
 
     extended_data = compute_days_passed(extended_data)
     stock_values = compute_days_passed(stock_values)
@@ -253,7 +316,7 @@ if __name__ == '__main__':
 
     # 2. tweet_percent_per_year(extended_data)
 
-    sentiment_group_percent_per_company(extended_data)
+    # 3. sentiment_group_percent_per_company(extended_data)
 
     # 4. companies_trolled(extended_data)
 
@@ -295,7 +358,7 @@ if __name__ == '__main__':
           
        6. close_value_from_beginning(stock_values, "MSFT")
           
-       6. close_value_from_beginning(stock_values, "APPL")
+       6. close_value_from_beginning(stock_values, "AAPL")
         
     """
 
