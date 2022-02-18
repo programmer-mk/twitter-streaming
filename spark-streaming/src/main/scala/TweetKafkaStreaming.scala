@@ -67,7 +67,7 @@ object TweetKafkaStreaming {
       if(rdd.count() > 0) {
         log.info(s"rdd size: ${rdd.count()}")
         val rdds: RDD[Seq[String]] = rdd.map(x => Seq(x.key(), s"${computePolarity(Util.cleanDocument(x.value().getText))}",
-          Util.cleanDocument(x.value().getText), x.value().getCreationTime.toString)).cache()
+          Util.cleanDocument(x.value().getText), x.value().getCreated.toString)).cache()
         rdds.map { seq =>
           seq.mkString(",")
         }.repartition(1).saveAsTextFile(s"s3a://test-spark-miki-bucket/output/spark_dummy_data_${rdd.id}.txt")

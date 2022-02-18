@@ -1,9 +1,5 @@
 package streaming
 
-import org.apache.spark.ml.feature.StopWordsRemover
-
-import scala.io.Source
-
 class Util {
 
 }

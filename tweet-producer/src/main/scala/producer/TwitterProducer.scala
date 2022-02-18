@@ -52,7 +52,7 @@ object TwitterProducer {
             val retweetCount = (tweet \ "retweet_count").as[Int]
             val user = (tweet \ "user").as[JsValue]
             val userFollowersCount = (user \ "followers_count").as[Int]
-            new UserTweet(idStr, text, createdAt, term, TweetStats(likeCount, retweetCount, userFollowersCount))
+            new UserTweet(idStr, text, createdAt, term, likeCount, retweetCount, userFollowersCount)
           }
 
           results.foreach { tweet =>
@@ -106,13 +106,16 @@ object TwitterProducer {
     val producer = new KafkaProducer[String, UserTweet](props)
 
     //tweet_id,writer,post_date,body,comment_num,retweet_num,like_num
-    bufferedSource2.getLines.filter(line => !line.contains("tweet_id")).toSeq.foreach { line =>
+    bufferedSource2.getLines.filter(line => !line.contains("tweet_id")).toSeq.zipWithIndex.foreach {  case (line, idx) =>
       val cols = line.split(",").map(_.trim)
       val term = tweetCompanyMapper.get(cols(0))
-      val tweet = new UserTweet(cols(0), cols(3), cols(2), term.getOrElse(""), TweetStats(cols(6).toInt, cols(5).toInt, 0))
+      val tweet = new UserTweet(cols(0), cols(3), cols(2), term.getOrElse(""), cols(6).toInt, cols(5).toInt, 0)
       val data = new ProducerRecord[String, UserTweet](TOPIC, tweet.getKey, tweet)
       println(tweet.toString)
-      Thread.sleep(1000)
+      if(idx % 10000 == 0) {
+        Thread.sleep(1000)
+      }
+
       producer.send(data)
       //tweets += tweet
     }

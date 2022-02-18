@@ -10,14 +10,16 @@ object KafkaStructuredStreaming {
 
   val log: Logger = Logger.getLogger(getClass.getName)
 
+  case class TweetStats(likeCount: Int, retweetCount: Int, userFollowersCount: Int)
+
   case class UserTweet(id: Long, t_key: String, processed_text: String, polarity: Double, created: String, search_term: String)
 
-  def computePolarity = (input: String, likeCount: Int, retweetCount: Int, followersCount: Int) => {
+  def computePolarity = (input: String, likeCount: Integer, retweetCount: Integer, followersCount: Integer) => {
     val sentimentAnalyzer = new SentimentAnalyzer(input)
     sentimentAnalyzer.analyze()
     val polarities = sentimentAnalyzer.getPolarity
     val compoundPolarity = polarities.get("compound")
-    compoundPolarity * followersCount * (likeCount + 1) * (retweetCount + 1)
+    compoundPolarity * (followersCount + 1) * (likeCount + 1) * (retweetCount + 1)
   }
 
   def main(args: Array[String]): Unit = {
@@ -60,26 +62,34 @@ object KafkaStructuredStreaming {
       .add("text",StringType)
       .add("created",StringType)
       .add("searchTerm",StringType)
-      .add("stats", new StructType()
-        .add("likeCount", IntegerType)
-        .add("retweetCount", IntegerType)
-        .add("userFollowersCount", IntegerType)
-      )
+      .add("likeCount", IntegerType)
+      .add("retweetCount", IntegerType)
+      .add("userFollowersCount", IntegerType)
+
 
     val computePolarityUdf = spark.udf.register("computePolarity", computePolarity)
     val cleanTextUdf = spark.udf.register("cleanTextUdf", Util.cleanDocument)
 
+
     val tweetDataset = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
       .select(col("key").as("t_key"), from_json(col("value"), schema).as("data"))
-      .select(col("t_key"), col("data.text"), col("data.created"), col("data.searchTerm").as("search_term"))
-
+      .select(col("t_key"), col("data.text"), col("data.created"),
+        col("data.searchTerm").as("search_term"),
+        col("data.likeCount").as("likeCount"), col("data.retweetCount").as("retweetCount"),
+        col("data.userFollowersCount").as("userFollowersCount")
+      )
       .withColumn("id", lit(0))
       .withColumn("processed_text", cleanTextUdf(col("text")))
-      .withColumn("polarity", computePolarityUdf(col("processed_text"), col("data.stats.likeCount"),
-        col("data.stats.retweetCount"), col("data.stats.userFollowersCount")
+      .withColumn("polarity", computePolarityUdf(col("processed_text"), col("likeCount"),
+        col("retweetCount"), col("userFollowersCount")
       ))
       .drop("text")
+      .drop("likeCount")
+      .drop("retweetCount")
+      .drop("userFollowersCount")
       .as[UserTweet]
+
+    tweetDataset.printSchema()
 
     val stream = tweetDataset.writeStream
       .outputMode("append")
