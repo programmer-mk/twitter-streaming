@@ -7,12 +7,21 @@ from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
 from sklearn.preprocessing import StandardScaler,MinMaxScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
 import boto3
 import os
 
 s3_client = boto3.client('s3')
 # bucket_name = os.environ['BUCKET_NAME']
 # merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
+
+companies = {
+    "AAPL" : "apple",
+    "GOOG" : "Google Inc",
+    "AMZN" : "Amazon.com",
+    "TSLA" : "Tesla Inc",
+    "MSFT":"Microsoft"
+}
 
 def read_data(all_stocks=True):
     if not all_stocks:
@@ -66,7 +75,19 @@ def save_models(estimators):
                 joblib.dump(estimator[estimator_key], f'/models/{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
 
 
-def preprocess_data(data, full_index=False):
+def choose_target(x):
+    diff = x.iloc[-1] - x.iloc[0]
+    if diff > 0:
+        return 1
+    else:
+        return 0
+
+def compute_target_column(data, days_after):
+    rolling_closes = data['close_value'].rolling(window=(days_after+1)).apply(choose_target).replace(np.nan, 0) # if before x days price is lower than todays price put 1 else put 0
+    data.insert(3, "Target", rolling_closes)
+    return data
+
+def preprocess_data(data, full_index=False, days_after=7):
     le_comp=LabelEncoder()
     MACD(data)
     RSI(data)
@@ -74,16 +95,20 @@ def preprocess_data(data, full_index=False):
     data['EMA'] = EMA(data)
     data = data.dropna()
     #Create the target column
-    data['Target'] = np.where(data['close_value'].shift(-7) > data['close_value'], 1, 0) # if before 7 days price is lower than todays price put 1 else put 0
+    data = data.sort_values(by=['date'])
+
     data_build = data[(data['date'] >= '2015-01-01') & (data['date'] < '2020-01-01')]
+    data_build = compute_target_column(data_build, days_after)
     if full_index:
         data_build['stock_name'] = le_comp.fit_transform(data_build['search_term'])
         keep_columns = ['close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
     else:
         keep_columns = ['close_value', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
-    features = data_build[keep_columns].values
-    labels = data_build['Target'].values
-    return features, labels
+
+    return data_build
+    # features = data_build[keep_columns].values
+    # labels = data_build['Target'].values
+    # return features, labels
 
 
 def nested_cv_logistic_regression(X, Y, stock_name):
@@ -93,7 +118,7 @@ def nested_cv_logistic_regression(X, Y, stock_name):
               }
 
     lgr = LogisticRegression(max_iter=20000)
-    pipeline = Pipeline([('scaler', MinMaxScaler()), ('logisticregression', lgr)])
+    pipeline = Pipeline([('scaler', StandardScaler()), ('logisticregression', lgr)])
 
     inner_cv = KFold(n_splits=5, shuffle=True, random_state=1)
     outer_cv = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -108,7 +133,7 @@ def nested_cv_logistic_regression(X, Y, stock_name):
     clf.fit(X, Y)
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
-    return clf
+    return clf, nested_score
 
 
 def nested_cv_svm(X, Y, stock_name):
@@ -117,7 +142,7 @@ def nested_cv_svm(X, Y, stock_name):
                   'svm__kernel': ['rbf']}
 
     svm = SVC()
-    pipeline = Pipeline([('scaler', MinMaxScaler()), ('svm', svm)])
+    pipeline = Pipeline([('scaler', StandardScaler()), ('svm', svm)])
 
     inner_cv = KFold(n_splits=5, shuffle=True, random_state=1)
     outer_cv = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -133,7 +158,7 @@ def nested_cv_svm(X, Y, stock_name):
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
 
-    return clf
+    return clf, nested_score
 
 
 def nested_cv_decission_tree(X, Y, stock_name):
@@ -144,7 +169,7 @@ def nested_cv_decission_tree(X, Y, stock_name):
                   }
 
     tree_clas = DecisionTreeClassifier(random_state=1024)
-    pipeline = Pipeline([('scaler', MinMaxScaler()), ('tree', tree_clas)])
+    pipeline = Pipeline([('scaler', StandardScaler()), ('tree', tree_clas)])
     inner_cv = KFold(n_splits=5, shuffle=True, random_state=1)
     outer_cv = KFold(n_splits=5, shuffle=True, random_state=1)
 
@@ -159,7 +184,7 @@ def nested_cv_decission_tree(X, Y, stock_name):
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
 
-    return clf
+    return clf, nested_score
 
 
 def download_data():
@@ -192,6 +217,11 @@ def package_training_data(merge_stocks=True):
     merged_data[merged_data["search_term"] == "GOOG"][modeling_columns].to_csv('data/polarity/GOOG.US-with-polarity.csv', index=False)
     print("Data packaged...")
 
+
+def build_results_graph():
+    pass
+
+
 if __name__ == '__main__':
     local = True
     merged_stocks = True
@@ -201,30 +231,43 @@ if __name__ == '__main__':
         download_data()
     stocks = read_data(merged_stocks)
 
-    if merged_stocks:
-        print("Start processing all stocks together ...")
-        stock_name = "ALL"
-        X, Y = preprocess_data(stocks, merged_stocks)
-        lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
-        print(f'logistic regression for {stock_name} finished')
-        svm_estimator = nested_cv_svm(X,Y, stock_name)
-        print(f'svm for {stock_name} finished')
-        dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
-        print(f'decission tree for {stock_name} finished')
-    else:
-        print("Start processing stock by stock ...")
-        for stock in stocks:
-            data = stock[0]
-            stock_name = stock[1]
-            X, Y = preprocess_data(data)
-            lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
-            print(f'logistic regression for {stock_name} finished')
-            svm_estimator = nested_cv_svm(X,Y, stock_name)
-            print(f'svm for {stock_name} finished')
-            dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
-            print(f'decission tree for {stock_name} finished')
-            # save_models([
-            #     {"lg":lg_estimator, "stock_name": stock_name},
-            #     {"svm":svm_estimator, "stock_name": stock_name},
-            #     {"dt":dt_estimator, "stock_name": stock_name}
-            # ])
+    days_range = range(1, 11)
+    for day in days_range:
+        if merged_stocks:
+            print("Start processing all stocks together ...")
+            stock_name = "ALL"
+            company_dfs = []
+            for company in companies:
+                processed_company_data = preprocess_data(stocks[stocks['search_term'] == company], merged_stocks, day)
+                company_dfs.append(processed_company_data)
+            keep_columns = ['close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
+            final_dataset = pd.concat(company_dfs)
+
+            X = final_dataset[keep_columns].values # features
+            Y = final_dataset['Target'].values # labels
+            X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
+
+            lg_estimator, lg_accuracy = nested_cv_logistic_regression(X_train, y_train, stock_name)
+            print(f'logistic regression for {stock_name} finished for target day after: {day}')
+            svm_estimator, svm_accuracy = nested_cv_svm(X_train,y_train, stock_name)
+            print(f'svm for {stock_name} finished for target day after: {day}')
+            dt_estimator, dt_accuracy = nested_cv_decission_tree(X_train, y_train, stock_name)
+            print(f'decission tree for {stock_name} finished for target day after: {day}')
+            build_results_graph()
+        else:
+            print("Start processing stock by stock ...")
+            for stock in stocks:
+                data = stock[0]
+                stock_name = stock[1]
+                X, Y = preprocess_data(data)
+                lg_estimator, _ = nested_cv_logistic_regression(X, Y, stock_name)
+                print(f'logistic regression for {stock_name} finished')
+                svm_estimator, _ = nested_cv_svm(X,Y, stock_name)
+                print(f'svm for {stock_name} finished')
+                dt_estimator, _ = nested_cv_decission_tree(X, Y, stock_name)
+                print(f'decission tree for {stock_name} finished')
+                # save_models([
+                #     {"lg":lg_estimator, "stock_name": stock_name},
+                #     {"svm":svm_estimator, "stock_name": stock_name},
+                #     {"dt":dt_estimator, "stock_name": stock_name}
+                # ])
