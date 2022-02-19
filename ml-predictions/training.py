@@ -5,35 +5,35 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
-
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
 import boto3
 import os
 
 s3_client = boto3.client('s3')
-bucket_name = os.environ['BUCKET_NAME']
-merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
+# bucket_name = os.environ['BUCKET_NAME']
+# merged_data_key_prefix = os.environ["MERGED_DATA_KEY_PREFIX"]
 
-def read_data():
-    microsoft_data = pd.read_csv('/data/MSFT.US-with-polarity.csv')
-    amazon_data = pd.read_csv('/data/AMZN.US-with-polarity.csv')
-    apple_data = pd.read_csv('/data/AAPL.US-with-polarity.csv')
-    tesla_data = pd.read_csv('/data/TSLA.US-with-polarity.csv')
-    bitcoin_data = pd.read_csv('/data/BTC-USD.CC-with-polarity.csv')
+def read_data(all_stocks=True):
+    if not all_stocks:
+        microsoft_data = pd.read_csv('data/polarity/MSFT.US-with-polarity.csv')
+        amazon_data = pd.read_csv('data/polarity/AMZN.US-with-polarity.csv')
+        apple_data = pd.read_csv('data/polarity/AAPL.US-with-polarity.csv')
+        tesla_data = pd.read_csv('data/polarity/TSLA.US-with-polarity.csv')
+        bitcoin_data = pd.read_csv('data/polarity/GOOG.US-with-polarity.csv')
+        return [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "GOOG"]]
+    else:
+        return pd.read_csv('data/polarity/all-data-with-polarity.csv')
 
-    return [[microsoft_data, "MSFT"], [amazon_data, "AMZN"], [apple_data, "AAPL"], [tesla_data, "TSLA"], [bitcoin_data, "BTC"]]
-
-
-def SMA(data, period=30, column='Close'):
+def SMA(data, period=30, column='close_value'):
     return data[column].rolling(window=period).mean()
 
 
-def EMA(data, period=20, column='Close'):
+def EMA(data, period=20, column='close_value'):
     return data[column].ewm(span=period, adjust=False).mean()
 
 
-def MACD(data, period_long=26, period_short=12, period_signal=9, column='Close'):
+def MACD(data, period_long=26, period_short=12, period_signal=9, column='close_value'):
     short_ema = EMA(data, period_short, column=column)
     long_ema = EMA(data, period_long, column=column)
     data['MACD'] = short_ema - long_ema
@@ -41,7 +41,7 @@ def MACD(data, period_long=26, period_short=12, period_signal=9, column='Close')
     return data
 
 
-def RSI(data, period = 14, column = 'Close'):
+def RSI(data, period=14, column='close_value'):
     delta = data[column].diff(1)
     delta = delta.dropna()
     up = delta.copy()
@@ -66,22 +66,21 @@ def save_models(estimators):
                 joblib.dump(estimator[estimator_key], f'/models/{estimator_key}-{estimator["stock_name"]}-estimator.pkl', compress=1)
 
 
-def preprocess_data(data):
+def preprocess_data(data, full_index=False):
+    le_comp=LabelEncoder()
     MACD(data)
     RSI(data)
     data['SMA'] = SMA(data)
     data['EMA'] = EMA(data)
     data = data.dropna()
-
     #Create the target column
-    data['Target'] = np.where(data['Close'].shift(-7) > data['Close'], 1, 0) # if before 7 days price is lower than todays price put 1 else put 0
-
-    data_build = data[(data['Date'] >= '2016-01-01') & (data['Date'] < '2021-07-24')]
-    data_verification = data[(data['Date'] >= '2021-07-24') & (data['Date'] < '2021-08-29')]
-
-    keep_columns = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
-    keep_columns_test = ['Close', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA', 'Target']
-    #data_verification[keep_columns_test].to_csv('/home/jovyan/ml-predictions/data/test.csv', index=True, index_label='Index')
+    data['Target'] = np.where(data['close_value'].shift(-7) > data['close_value'], 1, 0) # if before 7 days price is lower than todays price put 1 else put 0
+    data_build = data[(data['date'] >= '2015-01-01') & (data['date'] < '2020-01-01')]
+    if full_index:
+        data_build['stock_name'] = le_comp.fit_transform(data_build['search_term'])
+        keep_columns = ['close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
+    else:
+        keep_columns = ['close_value', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
     features = data_build[keep_columns].values
     labels = data_build['Target'].values
     return features, labels
@@ -176,21 +175,56 @@ def download_data():
             df_s3_data.to_csv(f'/data/{object_summary.key.lstrip(full_prefix)}', sep=',', index=False)
 
 
+def package_training_data(merge_stocks=True):
+
+    extended_data = pd.read_csv('data/Spark_Tweet_Output.csv')
+    stock_values = pd.read_csv('data/CompanyValues.csv')
+    merged_data = pd.merge(extended_data, stock_values, how="inner", left_on=["date", "search_term"], right_on=["day_date", "ticker_symbol"])
+    modeling_columns = ["date", "agg_polarity", "close_value", "volume", "open_value", "high_value", "low_value", "search_term"]
+
+    if merge_stocks:
+        merged_data[modeling_columns].to_csv('data/polarity/all-data-with-polarity.csv', index=False)
+
+    merged_data[merged_data["search_term"] == "AAPL"][modeling_columns].to_csv('data/polarity/AAPL.US-with-polarity.csv', index=False)
+    merged_data[merged_data["search_term"] == "MSFT"][modeling_columns].to_csv('data/polarity/MSFT.US-with-polarity.csv', index=False)
+    merged_data[merged_data["search_term"] == "AMZN"][modeling_columns].to_csv('data/polarity/AMZN.US-with-polarity.csv', index=False)
+    merged_data[merged_data["search_term"] == "TSLA"][modeling_columns].to_csv('data/polarity/TSLA.US-with-polarity.csv', index=False)
+    merged_data[merged_data["search_term"] == "GOOG"][modeling_columns].to_csv('data/polarity/GOOG.US-with-polarity.csv', index=False)
+    print("Data packaged...")
+
 if __name__ == '__main__':
-    download_data()
-    stocks = read_data()
-    for stock in stocks:
-        data = stock[0]
-        stock_name = stock[1]
-        X, Y = preprocess_data(data)
+    local = True
+    merged_stocks = True
+    if local:
+        package_training_data(merged_stocks)
+    else:
+        download_data()
+    stocks = read_data(merged_stocks)
+
+    if merged_stocks:
+        print("Start processing all stocks together ...")
+        stock_name = "ALL"
+        X, Y = preprocess_data(stocks, merged_stocks)
         lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
         print(f'logistic regression for {stock_name} finished')
         svm_estimator = nested_cv_svm(X,Y, stock_name)
         print(f'svm for {stock_name} finished')
         dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
         print(f'decission tree for {stock_name} finished')
-        save_models([
-            {"lg":lg_estimator, "stock_name": stock_name},
-            {"svm":svm_estimator, "stock_name": stock_name},
-            {"dt":dt_estimator, "stock_name": stock_name}
-        ])
+    else:
+        print("Start processing stock by stock ...")
+        for stock in stocks:
+            data = stock[0]
+            stock_name = stock[1]
+            X, Y = preprocess_data(data)
+            lg_estimator = nested_cv_logistic_regression(X, Y, stock_name)
+            print(f'logistic regression for {stock_name} finished')
+            svm_estimator = nested_cv_svm(X,Y, stock_name)
+            print(f'svm for {stock_name} finished')
+            dt_estimator = nested_cv_decission_tree(X, Y, stock_name)
+            print(f'decission tree for {stock_name} finished')
+            # save_models([
+            #     {"lg":lg_estimator, "stock_name": stock_name},
+            #     {"svm":svm_estimator, "stock_name": stock_name},
+            #     {"dt":dt_estimator, "stock_name": stock_name}
+            # ])
