@@ -10,6 +10,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 import boto3
 import os
+import time
+import datetime
 
 s3_client = boto3.client('s3')
 # bucket_name = os.environ['BUCKET_NAME']
@@ -87,24 +89,17 @@ def compute_target_column(data, days_after):
     data.insert(3, "Target", rolling_closes)
     return data
 
-def preprocess_data(data, full_index=False, days_after=7):
-    le_comp=LabelEncoder()
-    MACD(data)
-    RSI(data)
-    data['SMA'] = SMA(data)
-    data['EMA'] = EMA(data)
+def preprocess_data(data, days_after=7):
+    #MACD(data)
+    #RSI(data)
+    #data['SMA'] = SMA(data)
+    #data['EMA'] = EMA(data)
     data = data.dropna()
     #Create the target column
     data = data.sort_values(by=['date'])
 
     data_build = data[(data['date'] >= '2015-01-01') & (data['date'] < '2020-01-01')]
     data_build = compute_target_column(data_build, days_after)
-    if full_index:
-        data_build['stock_name'] = le_comp.fit_transform(data_build['search_term'])
-        keep_columns = ['close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
-    else:
-        keep_columns = ['close_value', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
-
     return data_build
     # features = data_build[keep_columns].values
     # labels = data_build['Target'].values
@@ -238,12 +233,18 @@ if __name__ == '__main__':
             stock_name = "ALL"
             company_dfs = []
             for company in companies:
-                processed_company_data = preprocess_data(stocks[stocks['search_term'] == company], merged_stocks, day)
+                processed_company_data = preprocess_data(stocks[stocks['search_term'] == company], day)
                 company_dfs.append(processed_company_data)
-            keep_columns = ['close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA']
+
+            #keep_columns = ['date','close_value', 'stock_name', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA', 'agg_polarity']
             final_dataset = pd.concat(company_dfs)
 
-            X = final_dataset[keep_columns].values # features
+            le_comp=LabelEncoder()
+            final_dataset['stock_name'] = le_comp.fit_transform(final_dataset['search_term'])
+            final_dataset['date'] = final_dataset['date'].apply(lambda x: time.mktime(datetime.datetime.strptime(x, "%Y-%m-%d").timetuple()))
+
+            #X = final_dataset.drop(['Target', 'search_term', 'MACD', 'Signal_Line', 'RSI', 'SMA', 'EMA'], axis=1).values # features
+            X = final_dataset.drop(['Target', 'search_term'], axis=1).values
             Y = final_dataset['Target'].values # labels
             X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
 
