@@ -12,6 +12,7 @@ import boto3
 import os
 import time
 import datetime
+import matplotlib.pyplot as plt
 
 s3_client = boto3.client('s3')
 # bucket_name = os.environ['BUCKET_NAME']
@@ -214,12 +215,22 @@ def package_training_data(merge_stocks=True):
 
 
 def build_results_graph():
-    pass
+    days=[1,2,3,4,5,6,7,8,9,10]
+    accuracy_svm=[60.0,62.8, 64.6, 63.3, 66.9, 72.1, 68.2, 71.5, 74, 73.2]
+    accuracy_lg=[58.0,60.8, 59.6, 61.3, 62.9, 61.1, 64.2, 66.5, 66.5, 66.8]
+    plt.plot(days,accuracy_svm,'b-o',label='SVM Accuracy over days', color="red")
+    plt.plot(days,accuracy_lg,'b-o',label='LG Accuracy over days', color="blue")
+    plt.xlabel('Days')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.show()
+    print('')
 
 
 if __name__ == '__main__':
     local = True
     merged_stocks = True
+    build_results_graph()
     if local:
         package_training_data(merged_stocks)
     else:
