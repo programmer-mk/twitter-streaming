@@ -4,10 +4,11 @@ import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
-from sklearn.model_selection import GridSearchCV, cross_val_score, KFold
+from sklearn.model_selection import GridSearchCV, cross_val_score, cross_validate, KFold
 from sklearn.preprocessing import StandardScaler,MinMaxScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
 import boto3
 import os
 import time
@@ -121,15 +122,19 @@ def nested_cv_logistic_regression(X, Y, stock_name):
 
     # Nested CV with parameter optimization
     clf = GridSearchCV(pipeline, param_grid=param_grid, cv=inner_cv)
-    nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
-    nested_score = nested_scores.mean()
+    nested_scores = cross_validate(clf, X=X, y=Y, scoring=['accuracy', 'f1', 'precision', 'recall'], cv=outer_cv)
+    accuracy_score = nested_scores['test_accuracy'].mean()
+    f1_score = nested_scores['test_f1'].mean()
+    precision_score = nested_scores['test_precision'].mean()
+    recall_score = nested_scores['test_recall'].mean()
 
-    print(f'#{stock_name} Results after cross-validation logistic regression {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation logistic regression: \n')
+    print(f'#{stock_name} accuracy: {accuracy_score}, f1: {f1_score}, precision: {precision_score}, recall: {recall_score}  \n')
 
     clf.fit(X, Y)
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
-    return clf, nested_score
+    return clf, accuracy_score
 
 
 def nested_cv_svm(X, Y, stock_name):
@@ -145,16 +150,21 @@ def nested_cv_svm(X, Y, stock_name):
 
     # Nested CV with parameter optimization
     clf = GridSearchCV(pipeline, param_grid=param_grid, cv=inner_cv, n_jobs=-1)
-    nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
-    nested_score = nested_scores.mean()
+    nested_scores = cross_validate(clf, X=X, y=Y, scoring=['accuracy', 'f1', 'precision', 'recall'], cv=outer_cv)
+    print('dt scores completation...')
+    accuracy_score = nested_scores['test_accuracy'].mean()
+    f1_score = nested_scores['test_f1'].mean()
+    precision_score = nested_scores['test_precision'].mean()
+    recall_score = nested_scores['test_recall'].mean()
 
-    print(f'#{stock_name} Results after cross-validation support vector machine {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation support vector machine: \n')
+    print(f'#{stock_name} accuracy: {accuracy_score}, f1: {f1_score}, precision: {precision_score}, recall: {recall_score}  \n')
 
     clf.fit(X, Y)
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
 
-    return clf, nested_score
+    return clf, accuracy_score
 
 
 def nested_cv_decission_tree(X, Y, stock_name):
@@ -171,16 +181,20 @@ def nested_cv_decission_tree(X, Y, stock_name):
 
     # Nested CV with parameter optimization
     clf = GridSearchCV(pipeline, param_grid=param_grid, cv=inner_cv, n_jobs=-1)
-    nested_scores = cross_val_score(clf, X=X, y=Y, scoring='accuracy', cv=outer_cv)
-    nested_score = nested_scores.mean()
+    nested_scores = cross_validate(clf, X=X, y=Y, scoring=['accuracy', 'f1', 'precision', 'recall'], cv=outer_cv)
+    accuracy_score = nested_scores['test_accuracy'].mean()
+    f1_score = nested_scores['test_f1'].mean()
+    precision_score = nested_scores['test_precision'].mean()
+    recall_score = nested_scores['test_recall'].mean()
 
-    print(f'#{stock_name} Results after cross-validation decission tree {nested_score} \n')
+    print(f'#{stock_name} Results after cross-validation decission tree: \n')
+    print(f'#{stock_name} accuracy: {accuracy_score}, f1: {f1_score}, precision: {precision_score}, recall: {recall_score}  \n')
 
     clf.fit(X, Y)
     print(f'#{stock_name} best estimator: {clf.best_estimator_}')
     print(f'#{stock_name} best params: {clf.best_params_}')
 
-    return clf, nested_score
+    return clf, accuracy_score
 
 
 def download_data():
@@ -216,10 +230,18 @@ def package_training_data(merge_stocks=True):
 
 def build_results_graph():
     days=[1,2,3,4,5,6,7,8,9,10]
-    accuracy_svm=[60.0,62.8, 64.6, 63.3, 66.9, 72.1, 68.2, 71.5, 74, 73.2]
-    accuracy_lg=[58.0,60.8, 59.6, 61.3, 62.9, 61.1, 64.2, 66.5, 66.5, 66.8]
-    plt.plot(days,accuracy_svm,'b-o',label='SVM Accuracy over days', color="red")
+    accuracy_lg=[ 0.6943305,  0.6553399,  0.6866583,   0.6683352, 0.65596646, 0.652208999, 0.639210517, 0.6384286577, 0.63263272, 0.6326326]
+    accuracy_svm=[0.6941726,  0.6302844,  0.6681800,   0.6747564, 0.69370480, 0.713434631, 0.752112553, 0.7397426234, 0.73128799, 0.7378627]
+    accuracy_dt=[ 0.6384268,  0.5560588,  0.5602891,   0.5833037, 0.59129476, 0.606013213, 0.629349646, 0.6262127712, 0.66019414, 0.6576934]
+
+    for index in range(10):
+        accuracy_lg[index] = accuracy_lg[index] * 100
+        accuracy_svm[index] = accuracy_svm[index] * 100
+        accuracy_dt[index] = accuracy_dt[index] * 100
+
     plt.plot(days,accuracy_lg,'b-o',label='LG Accuracy over days', color="blue")
+    plt.plot(days,accuracy_svm,'b-o',label='SVM Accuracy over days', color="red")
+    plt.plot(days,accuracy_dt,'b-o',label='DT Accuracy over days', color="orange")
     plt.xlabel('Days')
     plt.ylabel('Accuracy')
     plt.legend()
@@ -227,10 +249,41 @@ def build_results_graph():
     print('')
 
 
+def evaluate_test_data(lg_estimator, svm_estimator, dt_estimator, X_test, y_test):
+    print('Start evaluation on test data...')
+    lg_y_pred = lg_estimator.predict(X_test)
+    svm_y_pred = svm_estimator.predict(X_test)
+    dt_y_pred = dt_estimator.predict(X_test)
+
+    lg_f1_results = f1_score(y_test, lg_y_pred, average='weighted')
+    svm_f1_results = f1_score(y_test, svm_y_pred, average='weighted')
+    dt_f1_results = f1_score(y_test, dt_y_pred, average='weighted')
+
+    lg_accuracy_results = accuracy_score(y_test, lg_y_pred, normalize=True)
+    svm_accuracy_results = accuracy_score(y_test, svm_y_pred, normalize=True)
+    dt_accuracy_results = accuracy_score(y_test, dt_y_pred, normalize=True)
+
+
+    lg_recall_results = recall_score(y_test, lg_y_pred, average='weighted')
+    svm_recall_results = recall_score(y_test, svm_y_pred, average='weighted')
+    dt_recall_results = recall_score(y_test, dt_y_pred, average='weighted')
+
+    lg_precision_results = precision_score(y_test, lg_y_pred, average='weighted')
+    svm_precision_results = precision_score(y_test, svm_y_pred, average='weighted')
+    dt_precision_results = precision_score(y_test, dt_y_pred, average='weighted')
+
+    print(f'Logistic regression test data results: accuracy: {lg_accuracy_results}, f1: {lg_f1_results}, recall: {lg_recall_results}, precision: {lg_precision_results}')
+    print(f'Support vector machine test data results: accuracy: {svm_accuracy_results}, f1: {svm_f1_results}, recall: {svm_recall_results}, precision: {svm_precision_results}')
+    print(f'Decission tree test data results: accuracy: {dt_accuracy_results}, f1: {dt_f1_results}, recall: {dt_recall_results}, precision: {dt_precision_results}')
+
+    print("Done evaluation on test data")
+
+
 if __name__ == '__main__':
+    print('Start')
     local = True
     merged_stocks = True
-    build_results_graph()
+    #build_results_graph()
     if local:
         package_training_data(merged_stocks)
     else:
@@ -265,7 +318,9 @@ if __name__ == '__main__':
             print(f'svm for {stock_name} finished for target day after: {day}')
             dt_estimator, dt_accuracy = nested_cv_decission_tree(X_train, y_train, stock_name)
             print(f'decission tree for {stock_name} finished for target day after: {day}')
-            build_results_graph()
+            #build_results_graph()
+            evaluate_test_data(lg_estimator, svm_estimator, dt_estimator, X_test,y_test )
+
         else:
             print("Start processing stock by stock ...")
             for stock in stocks:
